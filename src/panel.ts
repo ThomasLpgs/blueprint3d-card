@@ -19,6 +19,8 @@ export interface PanelOptions {
   onLength(cfg: DeviceConfig, length: number): void;
   /** Hauteur / rotation : `commit` = false pendant le glissement du curseur (aperçu en direct). */
   onPlacement(cfg: DeviceConfig, field: "height" | "rotation", value: number, commit: boolean): void;
+  /** Décale l'objet d'un cran vers la gauche (-1) ou la droite (+1) de l'écran. */
+  onNudge(cfg: DeviceConfig, dir: number): void;
   /** Hauteur sous plafond, hauteur actuelle de l'objet et réglages possibles. */
   placement(cfg: DeviceConfig): { wallH: number; height: number; rotatable: boolean; ceiling: boolean };
   onConfirm(cfg: DeviceConfig, confirm: boolean): void;
@@ -37,6 +39,9 @@ export class DevicePanel {
   private busy = false;
   /** Dernier état affiché, pour ne redessiner que si l'entité change. */
   private shown?: HassEntity;
+  /** Appui maintenu sur un bouton « Décaler » : répétition. */
+  private nudgeDelay?: number;
+  private nudgeRepeat?: number;
 
   constructor(private opts: PanelOptions) {
     this.el.className = "panel hidden";
@@ -44,8 +49,18 @@ export class DevicePanel {
       e.stopPropagation();
       this.busy = true;
     });
-    this.el.addEventListener("pointerup", () => (this.busy = false));
-    this.el.addEventListener("pointerleave", () => (this.busy = false));
+    this.el.addEventListener("pointerdown", (e) => {
+      const b = (e.target as HTMLElement).closest<HTMLElement>('[data-act="nudge"]');
+      if (!b) return;
+      b.setPointerCapture?.(e.pointerId);
+      this.startNudge(b);
+    });
+    for (const type of ["pointerup", "pointercancel", "pointerleave"]) {
+      this.el.addEventListener(type, () => {
+        this.busy = false;
+        this.stopNudge();
+      });
+    }
     this.el.addEventListener("click", (e) => this.onClick(e));
     this.el.addEventListener("change", (e) => this.onChange(e));
     this.el.addEventListener("input", (e) => this.onInput(e));
@@ -65,11 +80,37 @@ export class DevicePanel {
 
   close(): void {
     this.cfg = undefined;
+    this.stopNudge();
     this.stopCamera();
     this.el.classList.add("hidden");
   }
 
   private camTimer?: number;
+
+  private startNudge(b: HTMLElement): void {
+    this.stopNudge();
+    this.nudge(b);
+    this.nudgeDelay = window.setTimeout(() => (this.nudgeRepeat = window.setInterval(() => this.nudge(b), 90)), 400);
+  }
+
+  private stopNudge(): void {
+    clearTimeout(this.nudgeDelay);
+    clearInterval(this.nudgeRepeat);
+    this.nudgeDelay = this.nudgeRepeat = undefined;
+  }
+
+  private nudge(b: HTMLElement): void {
+    if (!this.cfg) return this.stopNudge();
+    const dx = Number(b.dataset.dx ?? 0);
+    if (dx) this.opts.onNudge(this.cfg, dx);
+    const dh = Number(b.dataset.dh ?? 0);
+    const input = this.el.querySelector<HTMLInputElement>('input[data-field="height"]');
+    if (dh && input) {
+      const v = Math.min(Number(input.max), Math.max(0, Math.round((Number(input.value) + dh * 0.05) * 100) / 100));
+      input.value = String(v);
+      this.onInput({ target: input } as unknown as Event);
+    }
+  }
 
   private stopCamera(): void {
     clearInterval(this.camTimer);
@@ -149,6 +190,7 @@ export class DevicePanel {
         ${toggleable ? `<button class="switch ${isActive(kind, e) ? "on" : ""}" data-act="toggle" title="${t("toggle")}"><span></span></button>` : ""}
         <button class="icon-btn" data-act="close" title="${t("close")}">✕</button>
       </div>
+      ${this.opts.editing ? this.nudgeRow(cfg) : ""}
       <div class="panel-body">${
         e ? this.body(kind, e) : `<div class="muted">${cfg.entity ? esc(cfg.entity) : this.opts.editing ? t("link_hint") : t("unlinked_hint")}</div>`
       }</div>
@@ -158,6 +200,21 @@ export class DevicePanel {
         ${this.opts.editing ? `<button class="link danger" data-act="remove">${t("remove")}</button>` : ""}
       </div>`;
     if (e && kind === "camera") this.mountCamera(e);
+  }
+
+  /** Mode édition : boutons pour décaler l'objet (gauche/droite le long du mur, haut/bas). */
+  private nudgeRow(cfg: DeviceConfig): string {
+    const pl = this.opts.placement(cfg);
+    return `<div class="panel-edit nudge-row">
+      <div class="row"><label>${t("nudge")}</label>
+        <div class="nudge">
+          <button class="round" data-act="nudge" data-dx="-1" title="${t("nudge_left")}">◀</button>
+          <button class="round" data-act="nudge" data-dx="1" title="${t("nudge_right")}">▶</button>
+          ${pl.ceiling ? "" : `<button class="round" data-act="nudge" data-dh="-1" title="${t("nudge_down")}">▼</button>
+          <button class="round" data-act="nudge" data-dh="1" title="${t("nudge_up")}">▲</button>`}
+        </div>
+      </div>
+    </div>`;
   }
 
   /** En mode édition : relier à une entité, choisir le modèle 3D, longueur des rubans. */
@@ -335,6 +392,14 @@ export class DevicePanel {
         break;
       case "remove":
         this.opts.onRemove(this.cfg);
+        break;
+      case "nudge":
+        // Clavier (Entrée/Espace) : pas de pointerdown, on décale ici.
+        if ((ev as MouseEvent).detail === 0) this.nudge(btn);
+        break;
+      case "nudge":
+        // Clavier (Entrée/Espace) : pas de pointerdown, on décale ici.
+        if ((ev as MouseEvent).detail === 0) this.nudge(btn);
         break;
       case "h-preset": {
         const h = Number(btn.dataset.h);

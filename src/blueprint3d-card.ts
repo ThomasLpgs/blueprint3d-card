@@ -118,6 +118,13 @@ class Blueprint3DCard extends HTMLElement {
   private down?: { x: number; y: number; view?: DeviceView; timer?: number; consumed: boolean; dragged: boolean };
   private resizeObs?: ResizeObserver;
   private interObs?: IntersectionObserver;
+  /** Trajet de caméra en cours (cadrage d'un appareil en édition, puis retour). */
+  private camAnim?: { fromPos: THREE.Vector3; toPos: THREE.Vector3; fromTarget: THREE.Vector3; toTarget: THREE.Vector3; t: number };
+  /** Vue d'avant le cadrage, rétablie à la fermeture de la fiche. */
+  private focusSaved?: { pos: THREE.Vector3; target: THREE.Vector3 };
+  private lastDeclutter = 0;
+  /** Taille de chaque étiquette dépliée, mesurée quand elle l'était. */
+  private labelSize = new WeakMap<HTMLElement, [number, number]>();
 
   // ---------- API Lovelace ----------
 
@@ -303,6 +310,7 @@ class Blueprint3DCard extends HTMLElement {
         }),
       onLength: (cfg, length) => this.updateDevice(cfg, () => (cfg.length = length)),
       onPlacement: (cfg, field, value, commit) => this.placeDevice(cfg, field, value, commit),
+      onNudge: (cfg, dir) => this.nudgeDevice(cfg, dir),
       placement: (cfg) => {
         const view = this.views.find((v) => v.cfg === cfg);
         return {
@@ -382,6 +390,7 @@ class Blueprint3DCard extends HTMLElement {
     });
     this.editbar.querySelector("select")!.addEventListener("change", (e) => {
       const v = (e.target as HTMLSelectElement).value;
+      this.closePanel();
       this.placingEntity = v || undefined;
       this.placingItem = undefined;
       this.refreshUi();
@@ -521,7 +530,10 @@ class Blueprint3DCard extends HTMLElement {
     this.controls.dampingFactor = 0.08;
     this.controls.maxPolarAngle = Math.PI * 0.46;
     this.controls.screenSpacePanning = false;
-    this.controls.addEventListener("start", () => (this.userMoved = true));
+    this.controls.addEventListener("start", () => {
+      this.userMoved = true;
+      this.camAnim = undefined;
+    });
 
     this.resizeObs = new ResizeObserver(() => this.resize());
     this.resizeObs.observe(this.stage);
@@ -645,6 +657,8 @@ class Blueprint3DCard extends HTMLElement {
 
   private fitCamera(): void {
     if (!this.house) return;
+    this.camAnim = undefined;
+    this.focusSaved = undefined;
     const box = this.house.bounds;
     const center = box.getCenter(new THREE.Vector3());
     const size = box.getSize(new THREE.Vector3());
@@ -695,6 +709,8 @@ class Blueprint3DCard extends HTMLElement {
     this.renderer.setSize(w, h, false);
     this.post?.setSize(w, h);
     this.labelRenderer.setSize(w, h);
+    // Téléphone : étiquettes plus compactes, fiche en bas de l'écran.
+    this.stage.classList.toggle("narrow", w < 600);
     this.camera.aspect = w / h;
     this.camera.updateProjectionMatrix();
     // Tant que l'utilisateur n'a pas bougé la vue, elle se recadre à chaque changement de taille
@@ -714,6 +730,7 @@ class Blueprint3DCard extends HTMLElement {
     // Plafond à 0,25 s : sur un appareil lent, les animations gardent leur durée réelle sans sauter.
     const dt = Math.min(this.clock.getDelta(), 0.25);
     const time = this.clock.elapsedTime;
+    this.tickCamera(dt);
     this.controls.update();
     this.house?.updateCutaway(this.camera, this.wallMode, dt);
     for (const v of this.views) v.tick(dt, time);
@@ -723,6 +740,136 @@ class Blueprint3DCard extends HTMLElement {
     if (this.post) this.post.render();
     else this.renderer!.render(this.scene, this.camera);
     this.labelRenderer.render(this.scene, this.camera);
+    this.declutter();
+  }
+
+  /**
+   * Évite que les étiquettes se chevauchent (surtout sur téléphone) : les plus importantes
+   * (sélectionnée, allumées, proches) restent dépliées, les autres se réduisent à une pastille
+   * ou se masquent. L'appareil 3D reste cliquable dans tous les cas.
+   */
+  private declutter(force = false): void {
+    const now = performance.now();
+    if (!force && now - this.lastDeclutter < 120) return;
+    this.lastDeclutter = now;
+    type Box = { l: number; t: number; r: number; b: number };
+    const kept: Box[] = [];
+    const hits = (a: Box, pad: number) => kept.some((k) => a.l - pad < k.r && a.r + pad > k.l && a.t - pad < k.b && a.b + pad > k.t);
+    const camPos = this.camera.position;
+    const items = this.views
+      .filter((v) => v.label.element.style.display !== "none")
+      .map((v) => {
+        const el = v.labelEl;
+        const rank = el.classList.contains("selected") ? 0 : el.classList.contains("on") ? 1 : 2;
+        return { v, el, rank, dist: v.group.position.distanceToSquared(camPos) };
+      })
+      .sort((a, b) => a.rank - b.rank || a.dist - b.dist);
+    for (const { v, el } of items) {
+      const a = v.label.element.getBoundingClientRect();
+      const cx = (a.left + a.right) / 2;
+      const by = a.bottom - 6;
+      const mini = el.classList.contains("mini");
+      if (!mini && !el.classList.contains("culled")) this.labelSize.set(el, [el.offsetWidth, el.offsetHeight]);
+      const [w, h] = this.labelSize.get(el) ?? [90, 30];
+      const full = { l: cx - w / 2, r: cx + w / 2, t: by - h, b: by };
+      const dot = { l: cx - 10, r: cx + 10, t: by - 20, b: by };
+      // Marge en plus pour redéplier une pastille : évite le clignotement à la limite.
+      const mode = !hits(full, mini ? 6 : 0) ? "full" : !hits(dot, 0) ? "mini" : "culled";
+      if (mode !== "culled") kept.push(mode === "full" ? full : dot);
+      el.classList.toggle("mini", mode === "mini");
+      el.classList.toggle("culled", mode === "culled");
+    }
+    // Les noms de pièces passent après les appareils.
+    for (const el of this.labelsEl.querySelectorAll<HTMLElement>(".room-label")) {
+      if (el.style.display === "none") continue;
+      const r = el.getBoundingClientRect();
+      const box = { l: r.left, t: r.top, r: r.right, b: r.bottom };
+      const hidden = hits(box, 2);
+      el.classList.toggle("culled", hidden);
+      if (!hidden) kept.push(box);
+    }
+  }
+
+  private tickCamera(dt: number): void {
+    const a = this.camAnim;
+    if (!a) return;
+    a.t = Math.min(1, a.t + dt / 0.6);
+    const k = a.t * a.t * (3 - 2 * a.t);
+    this.camera.position.lerpVectors(a.fromPos, a.toPos, k);
+    this.controls.target.lerpVectors(a.fromTarget, a.toTarget, k);
+    if (a.t >= 1) this.camAnim = undefined;
+  }
+
+  private moveCamera(pos: THREE.Vector3, target: THREE.Vector3): void {
+    // Sans rendu (plan 2D affiché), la caméra est placée directement.
+    if (this.editing && this.editTab === "plan") {
+      this.camAnim = undefined;
+      this.camera.position.copy(pos);
+      this.controls.target.copy(target);
+      return;
+    }
+    this.camAnim = { fromPos: this.camera.position.clone(), toPos: pos, fromTarget: this.controls.target.clone(), toTarget: target, t: 0 };
+  }
+
+  /** Édition : la caméra se place face à l'appareil (face au mur s'il y est accroché), en plus près. */
+  private focusDevice(view: DeviceView): void {
+    if (!this.editing || this.editTab !== "devices" || !this.house) return;
+    const box = new THREE.Box3().setFromObject(view.group);
+    const center = box.isEmpty() ? view.group.position.clone().setY(view.effectiveHeight) : box.getCenter(new THREE.Vector3());
+    const [x, y] = view.cfg.position;
+    const wall = this.house.nearestWall(x, y, 0.8);
+    const dir = wall ? wall.inward.clone() : this.camera.position.clone().sub(center).setY(0);
+    if (dir.lengthSq() < 1e-6) dir.set(0, 0, 1);
+    dir.normalize();
+    // Distance choisie pour voir ~2,6 m de large autour de l'objet, quel que soit l'écran.
+    const halfV = THREE.MathUtils.degToRad(this.camera.fov) / 2;
+    const tanH = Math.tan(halfV) * this.camera.aspect;
+    const dist = THREE.MathUtils.clamp(1.3 / tanH, 2.2, 7);
+    // Vue plongeante (40°), et toujours au-dessus des cloisons pour qu'elles ne masquent pas l'objet.
+    const wallH = this.config.wall_height ?? 2.5;
+    const elev = THREE.MathUtils.degToRad(40);
+    const pos = center.clone().addScaledVector(dir, dist * Math.cos(elev));
+    pos.y = Math.max(center.y + dist * Math.sin(elev), wallH + 0.5);
+    const target = center.clone();
+    // Sur téléphone, la fiche couvre la moitié basse et les boutons le haut : on décale la vue
+    // pour placer l'objet dans la bande libre entre les deux (~37 % depuis le haut).
+    if (this.stage.classList.contains("narrow")) {
+      const look = target.clone().sub(pos).normalize();
+      const up = new THREE.Vector3(0, 1, 0).addScaledVector(look, -look.y).normalize();
+      const shift = pos.distanceTo(target) * Math.tan(halfV) * 0.26;
+      pos.addScaledVector(up, -shift);
+      target.addScaledVector(up, -shift);
+    }
+    if (!this.focusSaved) this.focusSaved = { pos: this.camera.position.clone(), target: this.controls.target.clone() };
+    this.controls.minDistance = 0.5;
+    this.userMoved = true;
+    this.moveCamera(pos, target);
+  }
+
+  private unfocus(): void {
+    const saved = this.focusSaved;
+    if (!saved) return;
+    this.focusSaved = undefined;
+    this.controls.minDistance = 2;
+    this.moveCamera(saved.pos, saved.target);
+  }
+
+  /** Décale l'appareil de 5 cm vers la gauche (-1) ou la droite (+1) de l'écran, le long de son mur. */
+  private nudgeDevice(cfg: DeviceConfig, dir: number): void {
+    const view = this.views.find((v) => v.cfg === cfg);
+    if (!view || !this.house) return;
+    const right = new THREE.Vector3().setFromMatrixColumn(this.camera.matrixWorld, 0).setY(0);
+    const [x, y] = cfg.position;
+    const wall = this.house.nearestWall(x, y, 0.8);
+    // Contre un mur, on glisse le long du mur ; sinon selon l'axe le plus proche de l'horizontale de l'écran.
+    const alongX = wall ? wall.axis === "h" : Math.abs(right.x) >= Math.abs(right.z);
+    const step = 0.05 * dir * Math.sign((alongX ? right.x : right.z) || 1);
+    const nx = alongX ? snap(x + step) : x;
+    const ny = alongX ? y : snap(y + step);
+    if (!this.house.roomAt(nx, ny)) return;
+    view.moveTo(nx, ny);
+    this.select(this.rebuildView(view));
+    this.markDirty();
   }
 
   // ---------- Interaction ----------
@@ -735,7 +882,25 @@ class Blueprint3DCard extends HTMLElement {
   private pick(e: PointerEvent | MouseEvent): DeviceView | undefined {
     this.raycaster.setFromCamera(this.ndc(e), this.camera);
     const hits = this.raycaster.intersectObjects([...this.pickMap.keys()], false);
-    return hits.length ? this.pickMap.get(hits[0].object) : undefined;
+    if (hits.length) return this.pickMap.get(hits[0].object);
+    // Au doigt, on tolère un appui à côté : l'appareil le plus proche à moins de 28 px.
+    if (!("pointerType" in e) || e.pointerType === "mouse") return undefined;
+    const rect = this.renderer!.domElement.getBoundingClientRect();
+    const px = e.clientX - rect.left;
+    const py = e.clientY - rect.top;
+    const p = new THREE.Vector3();
+    let best: DeviceView | undefined;
+    let bestD = 28;
+    for (const [obj, view] of this.pickMap) {
+      obj.getWorldPosition(p).project(this.camera);
+      if (p.z > 1) continue;
+      const d = Math.hypot(((p.x + 1) / 2) * rect.width - px, ((1 - p.y) / 2) * rect.height - py);
+      if (d < bestD) {
+        bestD = d;
+        best = view;
+      }
+    }
+    return best;
   }
 
   private floorPoint(e: PointerEvent): THREE.Vector3 | undefined {
@@ -838,11 +1003,13 @@ class Blueprint3DCard extends HTMLElement {
     this.closeRoom();
     this.select(view);
     this.panel.open(view.cfg, this._hass, this.editing);
+    this.focusDevice(view);
   }
 
   private closePanel(): void {
     this.panel.close();
     this.select(undefined);
+    this.unfocus();
   }
 
   private select(view: DeviceView | undefined): void {
@@ -1284,6 +1451,8 @@ class Blueprint3DCard extends HTMLElement {
       else this.editor.startDevice(item);
       return;
     }
+    // On reprend la vue d'ensemble pour choisir où poser l'objet.
+    this.closePanel();
     this.placingEntity = undefined;
     this.placingItem = item;
     this.fillEntityPicker();

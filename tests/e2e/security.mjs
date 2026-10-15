@@ -150,8 +150,8 @@ const card = "document.querySelector('blueprint3d-card')";
       "valve.arrosage": { entity_id: "valve.arrosage", state: "closed", attributes: { friendly_name: "Vanne test" }, last_changed: "", last_updated: "" },
     };
     // Config piégée : la serrure et la vanne déclarées comme simples interrupteurs (clic = bascule).
-    c.devices.push({ entity: "lock.porte_entree", type: "switch", position: [1.5, 1.5] });
-    c.devices.push({ entity: "valve.arrosage", type: "switch", position: [2.5, 1.5] });
+    c.devices.push({ entity: "lock.porte_entree", type: "switch", position: [6.3, 6.4] });
+    c.devices.push({ entity: "valve.arrosage", type: "switch", position: [2.8, 7.2] });
     c.hass = { ...h, states, callService: async (...a) => window.__calls.push(a) };
     c.buildDevices();
     return window.__calls.length;
