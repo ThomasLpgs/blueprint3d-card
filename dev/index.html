@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Blueprint3D Card · dev</title>
+    <style>
+      :root {
+        --primary-color: #ff9b42;
+        --card-background-color: #ffffff;
+        --primary-text-color: #1f2328;
+        --secondary-text-color: #6b7280;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --card-background-color: #1c1c1e;
+          --primary-text-color: #e8e8ea;
+          --secondary-text-color: #9a9aa2;
+        }
+        body { background: #111214; }
+      }
+      body { margin: 0; padding: 16px; background: #f2f1ef; font-family: system-ui, sans-serif; }
+      .wrap { max-width: 1100px; margin: 0 auto; height: calc(100vh - 32px); }
+      blueprint3d-card { height: 100%; }
+      ha-card { display: flex; background: var(--card-background-color); border-radius: 12px; box-shadow: 0 1px 4px rgba(0,0,0,.1); }
+    </style>
+  </head>
+  <body>
+    <div class="wrap"><blueprint3d-card></blueprint3d-card></div>
+    <script type="module">
+      import "../src/blueprint3d-card.ts";
+      import { createMockHass } from "./mock-hass.ts";
+
+      import { MAISON } from "../examples/maison.ts";
+
+      // ?plan=maison : la maison d'exemple, avec les entités du faux HA placées dedans.
+      const MAISON_DEVICES = [
+        { entity: "light.salon", position: [8.8, 6.0] },
+        { entity: "light.salle_a_manger", position: [6.4, 4.7] },
+        { entity: "light.cuisine", position: [9.6, 1.6] },
+        { entity: "light.chambre", position: [1.9, 1.8] },
+        { entity: "light.salle_de_bain", position: [4.9, 1.2] },
+        { entity: "light.entree", position: [7.0, 1.6] },
+        { entity: "climate.salon", position: [11.35, 7.5] },
+        { entity: "climate.chambre", position: [1.9, 0.12] },
+        { entity: "vacuum.robot", position: [6.0, 8.3] },
+        { entity: "cover.volet_salon", position: [7.7, 9.0] },
+        { entity: "media_player.tv", position: [9.1, 3.85] },
+        { entity: "sensor.temperature_salon", position: [11.3, 4.5] },
+        { entity: "binary_sensor.porte_entree", position: [7.0, 0.15] },
+        { entity: "fan.chambre", position: [2.0, 4.8] },
+        { entity: "binary_sensor.mouvement_couloir", model: "hue_motion", position: [4.4, 6.0] },
+        { entity: "sensor.humidite_sdb", model: "gen_thermo", position: [5.8, 1.4] },
+        { entity: "sensor.temperature_sdb", model: "gen_thermo", position: [5.8, 1.8] },
+        { entity: "switch.prise_cafe", model: "tapo_p110", position: [8.6, 0.3], height: 1.0 },
+        { entity: "camera.tapo_c200_salon", model: "tapo_c200", position: [11.3, 8.8] },
+      ];
+      // La baie vitrée du séjour est reliée à son capteur d'ouverture.
+      const MAISON_OPENINGS = MAISON.openings.map((o) => (o.type === "glass_door" ? { ...o, sensor: "binary_sensor.baie_terrasse" } : o));
+      const MAISON_SCENES = [{ entity: "scene.soiree", icon: "🛋️" }, { entity: "scene.cinema", icon: "🎬" }, { entity: "script.tout_eteindre", icon: "🌙" }];
+      const params = new URLSearchParams(location.search);
+      const card = document.querySelector("blueprint3d-card");
+      const initial =
+        params.get("plan") === "maison"
+          ? {
+              ...MAISON,
+              devices: MAISON_DEVICES.map((d) => (d.entity === "vacuum.robot" && params.has("realvacuum") ? { ...d, position_entity: "camera.xiaomi_map" } : d)),
+              openings: MAISON_OPENINGS,
+              scenes: MAISON_SCENES,
+              power_entity: "sensor.linky_puissance",
+              ...(params.has("levels") ? { levels: [{ name: "RDC" }, { name: "Étage" }] } : {}),
+            }
+          : { type: "custom:blueprint3d-card", title: "Ma maison" };
+      card.setConfig(initial);
+      const hass = createMockHass((h) => (card.hass = h));
+
+      // Faux tableau de bord Lovelace pour tester « Enregistrer ».
+      let dashboard = { views: [{ title: "Maison", cards: [structuredClone(initial)] }] };
+      hass.callWS = async (msg) => {
+        console.log("[mock] callWS", msg.type, msg);
+        if (msg.type === "lovelace/config") return structuredClone(dashboard);
+        if (msg.type === "config/entity_registry/list_for_display") {
+          const pl = {
+            "light.hue_go_salon": "hue",
+            "light.salon": "hue",
+            "binary_sensor.mouvement_couloir": "hue",
+            "light.ruban_led_tapo": "tplink",
+            "camera.tapo_c200_salon": "tapo_control",
+            "sensor.tapo_t310_temperature": "tplink",
+            "light.govee_tv_backlight": "govee_light_local",
+            "light.govee_hexa": "govee_light_local",
+            "vacuum.litter_robot_4": "litterrobot",
+            "sensor.litter_robot_4_waste_drawer": "litterrobot",
+            "switch.prise_cafe": "tplink",
+            "sensor.prise_cafe_puissance": "tplink",
+          };
+          // Appareils HA : la prise et son capteur de puissance appartiennent au même appareil.
+          const di = { "switch.prise_cafe": "dev_cafe", "sensor.prise_cafe_puissance": "dev_cafe", "media_player.tv": "dev_tv", "sensor.tv_puissance": "dev_tv" };
+          return { entities: Object.keys(hass.states).map((ei) => ({ ei, pl: pl[ei] ?? "demo", ...(di[ei] ? { di: di[ei] } : {}) })) };
+        }
+        if (msg.type === "lovelace/config/save") {
+          dashboard = msg.config;
+          setTimeout(() => card.setConfig(structuredClone(dashboard.views[0].cards[0])), 50);
+          return null;
+        }
+      };
+      window.dashboard = () => dashboard;
+      card.hass = hass;
+
+      // ?edit ou ?edit=plan pour ouvrir directement le mode édition.
+      if (params.has("edit")) {
+        setTimeout(() => {
+          card.setEditing(true);
+          if (params.get("edit") === "plan") card.setTab("plan");
+        }, 300);
+      }
+    </script>
+  </body>
+</html>
