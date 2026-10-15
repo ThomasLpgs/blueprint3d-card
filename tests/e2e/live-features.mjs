@@ -25,8 +25,9 @@ const setState = (id, state, attrs) =>
     },
     [id, state, attrs],
   );
-const floorPx = (x, y) =>
-  page.evaluate(
+const floorPx = async (x, y) => {
+  await page.waitForFunction(() => !document.querySelector("blueprint3d-card").camAnim);
+  return page.evaluate(
     ([x, y]) => {
       const c = document.querySelector("blueprint3d-card");
       const v = c.camera.position.clone().set(x, 0, y).project(c.camera);
@@ -35,6 +36,7 @@ const floorPx = (x, y) =>
     },
     [x, y],
   );
+};
 
 // ---------- 1. Fiche de pièce ----------
 let p = await floorPx(3.0, 5.8); // Bureau, coin libre

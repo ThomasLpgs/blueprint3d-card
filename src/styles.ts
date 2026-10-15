@@ -83,6 +83,25 @@ ha-card, .card {
 .dev-label.selected { box-shadow: 0 0 0 2px var(--h3d-accent), 0 2px 10px rgba(0, 0, 0, 0.2); }
 .hide-labels .dev-label .txt { display: none; }
 .hide-labels .dev-label { padding: 5px; }
+.dev-label { position: relative; }
+/* Étiquettes qui se chevauchent : réduites à une pastille, ou masquées (l'objet 3D reste cliquable). */
+.dev-label.mini { padding: 5px; gap: 0; }
+.dev-label.mini .txt { display: none; }
+.dev-label.mini::after { content: ""; position: absolute; inset: -8px; border-radius: 50%; }
+.dev-label.culled, .room-label.culled { visibility: hidden; pointer-events: none; }
+/* Téléphone : étiquettes compactes (l'état reste affiché pour les capteurs et clims). */
+.narrow .dev-label { font-size: 10px; padding: 3px 7px 3px 5px; gap: 4px; }
+.narrow .dev-label:not(.kind-sensor):not(.kind-climate) .s { display: none; }
+.narrow .dev-label .dot { width: 7px; height: 7px; }
+/* Téléphone : la fiche s'ouvre en bas, la scène reste visible au-dessus. */
+.narrow .panel { top: auto; bottom: 10px; left: 10px; right: 10px; width: auto; max-height: 50%; }
+/* Téléphone : barre d'outils à droite, infos (présence, compteur, alertes) à gauche, sans se chevaucher. */
+.narrow .toolbar { max-width: calc(58% - 10px); }
+.narrow .overlay-left { max-width: calc(42% - 16px); }
+.panel-edit.nudge-row { border-top: none; border-bottom: 1px solid var(--h3d-border); padding-top: 0; }
+.nudge-row .row { flex-direction: row; align-items: center; justify-content: space-between; }
+.panel-edit .nudge { display: flex; gap: 8px; }
+.panel-edit .nudge .round { touch-action: none; }
 
 .toolbar {
   position: absolute;

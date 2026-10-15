@@ -18,8 +18,9 @@ await page.locator("[data-act=edit]").click();
 await page.waitForTimeout(300);
 
 // Point du sol (x, y du plan) → pixel à l'écran
-const floorPx = (x, y, h = 0) =>
-  page.evaluate(
+const floorPx = async (x, y, h = 0) => {
+  await page.waitForFunction(() => !document.querySelector("blueprint3d-card").camAnim);
+  return page.evaluate(
     ([x, y, h]) => {
       const c = document.querySelector("blueprint3d-card");
       const v = c.camera.position.clone().set(x, h, y).project(c.camera);
@@ -28,6 +29,7 @@ const floorPx = (x, y, h = 0) =>
     },
     [x, y, h],
   );
+};
 const devices = () => page.evaluate(() => document.querySelector("blueprint3d-card").devices.map((d) => ({ ...d })));
 
 // 1. Bibliothèque
