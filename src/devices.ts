@@ -372,6 +372,33 @@ class LightView extends DeviceView {
         labelY = h + 0.15;
         break;
       }
+      case "tube": {
+        // Tube lumineux posé (Hue Play Gradient Light Tube) : objet libre, pas aspiré par le mur.
+        // Il ne s'accroche au mur que s'il est posé contre (< 15 cm), comme avec son support mural.
+        // Sans hauteur réglée, il se pose sur le meuble en dessous (meuble TV…), sinon au sol.
+        if (cfg.height === undefined) this.height = ctx.house.surfaceAt(cfg.position[0], cfg.position[1]);
+        const y0 = this.height;
+        const onWall = !!this.mountOnWall(0.06, 0.15);
+        const len = cfg.length ?? this.item?.length ?? 0.75;
+        const dark = std(0x26282b, { roughness: 0.35, metalness: 0.5 });
+        const yc = y0 + (onWall ? 0 : 0.045);
+        const body = at(mesh(new THREE.CapsuleGeometry(0.026, Math.max(0.05, len - 0.052), 4, 12), dark), 0, yc, -0.006);
+        body.rotation.z = Math.PI / 2;
+        // Diffuseur en 5 zones : chaque zone prend une teinte voisine (effet dégradé).
+        const n = 5;
+        const seg = (len - 0.06) / n;
+        for (let i = 0; i < n; i++) at(glow(new THREE.BoxGeometry(seg - 0.004, 0.036, 0.012), 0xffffff), -len / 2 + 0.03 + (i + 0.5) * seg, yc, 0.018);
+        if (!onWall) for (const fx of [-len * 0.35, len * 0.35]) at(mesh(new THREE.BoxGeometry(0.05, 0.02, 0.06), dark), fx, y0 + 0.01);
+        lightY = yc;
+        lightZ = 0.25;
+        this.power = 6 + len * 10;
+        haloY = yc;
+        haloScale = Math.max(0.6, len);
+        hitY = yc;
+        hitR = Math.max(0.25, len * 0.45);
+        labelY = yc + 0.2;
+        break;
+      }
       case "hexa": {
         this.mountOnWall(0.02, 0.8);
         const offsets = [

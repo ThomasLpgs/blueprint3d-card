@@ -35,6 +35,7 @@ export function sanitizeConfig(input: CardConfig): { config: CardConfig; warning
 
   if (c.height !== undefined) c.height = num(c.height, 150, 3000);
   if (c.wall_height !== undefined) c.wall_height = num(c.wall_height, 1.5, 6);
+  if (c.max_labels !== undefined) c.max_labels = num(c.max_labels, 0, 200);
   if (c.north !== undefined) c.north = num(c.north, -360, 360);
   if (c.title !== undefined) c.title = str(c.title);
   if (c.quality !== undefined && !["auto", "high", "low"].includes(c.quality)) delete c.quality;

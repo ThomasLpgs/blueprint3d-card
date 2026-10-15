@@ -83,6 +83,7 @@ const r2 = (v: number) => Math.round(v * 100) / 100;
 
 export class House {
   readonly group = new THREE.Group();
+  private furnitureGroups: THREE.Group[] = [];
   readonly floorMeshes: THREE.Mesh[] = [];
   readonly bounds = new THREE.Box3();
   readonly openings: OpeningView[] = [];
@@ -820,6 +821,16 @@ export class House {
     }
     g.position.set(f.x + w / 2, 0, f.y + d / 2);
     this.group.add(g);
+    this.furnitureGroups.push(g);
+  }
+
+  /** Hauteur du dessus du meuble au point (x, y) du plan, 0 s'il n'y en a pas (tapis ignorés). */
+  surfaceAt(x: number, y: number): number {
+    const ray = new THREE.Raycaster(new THREE.Vector3(x, this.wallH, y), new THREE.Vector3(0, -1, 0), 0, this.wallH);
+    this.group.updateMatrixWorld();
+    const hit = ray.intersectObjects(this.furnitureGroups, true)[0];
+    const top = hit ? this.wallH - hit.distance : 0;
+    return top > 0.05 ? Math.round(top * 100) / 100 : 0;
   }
 
   dispose(): void {

@@ -40,7 +40,7 @@ export function parseImport(text: string, cardType: string): ImportResult {
   const looksLikePlan = ["rooms", "devices", "openings", "furniture"].some((k) => k in card!);
   if (!looksLikePlan) return { ok: false, error: "no_card" };
   // Copie des seules clés connues : rien d'autre (ni __proto__, ni options inconnues) n'est repris.
-  const keys = ["title", "height", "wall_height", "sun_entity", "north", "compact_labels", "rooms", "openings", "furniture", "devices", "background", "scenes", "show_persons", "quality", "power_entity", "weather_entity", "levels"] as const;
+  const keys = ["title", "height", "wall_height", "sun_entity", "north", "compact_labels", "max_labels","rooms", "openings", "furniture", "devices", "background", "scenes", "show_persons", "quality", "power_entity", "weather_entity", "levels"] as const;
   const config: Partial<CardConfig> = {};
   for (const k of keys) if (Object.prototype.hasOwnProperty.call(card, k)) (config as Record<string, unknown>)[k] = card[k];
   return { ok: true, config };

@@ -220,7 +220,7 @@ export class DevicePanel {
   /** En mode édition : relier à une entité, choisir le modèle 3D, longueur des rubans. */
   private editSection(cfg: DeviceConfig): string {
     const shape = deviceItem(cfg.model)?.shape;
-    const strip = shape === "strip" || shape === "string_lights";
+    const strip = shape === "strip" || shape === "string_lights" || shape === "tube";
     const pl = this.opts.placement(cfg);
     const fmt = (v: number) => v.toFixed(2).replace(".", ",");
     const presets: [string, number][] = [

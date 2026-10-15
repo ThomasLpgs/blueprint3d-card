@@ -40,7 +40,29 @@ const labels = await page.evaluate(() => {
 check("mode téléphone détecté", labels.narrow);
 check("aucune étiquette d'appareil ne se chevauche", labels.devPairs === 0, JSON.stringify(labels));
 check("aucun nom de pièce sous une étiquette", labels.roomPairs === 0);
-check("les étiquettes en trop deviennent des pastilles", labels.mini + labels.full < labels.total || labels.mini > 0, `${labels.full} dépliées, ${labels.mini} pastilles / ${labels.total}`);
+check("seulement 3 étiquettes dépliées sur téléphone, le reste en pastilles", labels.full === 3 && labels.mini > 0, `${labels.full} dépliées, ${labels.mini} pastilles / ${labels.total}`);
+// Les 3 dépliées sont les plus proches de la caméra (premier plan).
+const nearest = await page.evaluate(() => {
+  const c = document.querySelector("blueprint3d-card");
+  const shown = c.views.filter((v) => v.label.element.style.display !== "none");
+  const byDist = [...shown].sort((a, b) => a.group.position.distanceTo(c.camera.position) - b.group.position.distanceTo(c.camera.position));
+  const full = shown.filter((v) => !v.labelEl.classList.contains("mini") && !v.labelEl.classList.contains("culled"));
+  // Chaque étiquette dépliée est parmi les plus proches (une proche peut être masquée par chevauchement).
+  const rank = full.map((v) => byDist.indexOf(v));
+  return { rank, names: full.map((v) => v.cfg.entity) };
+});
+check("les étiquettes dépliées sont au premier plan", nearest.rank.every((r) => r < 6), JSON.stringify(nearest));
+// Option max_labels : 0 → toutes en pastilles.
+const zero = await page.evaluate(async () => {
+  const c = document.querySelector("blueprint3d-card");
+  c.config.max_labels = 0;
+  c.declutter(true);
+  const n = [...c.shadowRoot.querySelectorAll(".dev-label")].filter((l) => l.parentElement.style.display !== "none" && !l.classList.contains("mini") && !l.classList.contains("culled")).length;
+  delete c.config.max_labels;
+  c.declutter(true);
+  return n;
+});
+check("option max_labels respectée", zero === 0, String(zero));
 await page.screenshot({ path: `${out}/mobile-labels.png` });
 
 // ---------- 2. Appui à côté d'une lampe ----------

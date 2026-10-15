@@ -776,7 +776,7 @@ export class PlanEditor {
           <div class="muted">${esc(d.entity || t("unlinked"))} · ${esc(kindOf(d))}</div>
           <label>${t("link_entity")}<select data-prop="entity">${this.hooks.entityOptions(d)}</select></label>
           <label>${t("model")}<select data-prop="model">${this.hooks.modelOptions(d)}</select></label>
-          ${item?.shape === "strip" ? `<label>${t("length")} (m)<input type="number" data-prop="length" min="0.3" step="0.1" value="${esc(d.length ?? "")}" placeholder="${esc(item.length ?? 2)}"></label>` : ""}
+          ${item?.shape === "strip" || item?.shape === "tube" ? `<label>${t("length")} (m)<input type="number" data-prop="length" min="0.3" step="0.1" value="${esc(d.length ?? "")}" placeholder="${esc(item.length ?? 2)}"></label>` : ""}
           <label>${t("name")}<input type="text" data-prop="name" value="${esc(d.name ?? "")}" placeholder="auto"></label>
           <div class="grid2">${num("px", "x", d.position[0])}${num("py", "y", d.position[1])}</div>
           <label>${t("height")}<input type="number" data-prop="height" step="0.05" value="${esc(d.height ?? "")}" placeholder="auto"></label>`;

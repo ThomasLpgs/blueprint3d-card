@@ -142,6 +142,8 @@ export interface CardConfig {
   north?: number;
   /** Étiquettes réduites à une pastille de couleur. */
   compact_labels?: boolean;
+  /** Nombre d'étiquettes dépliées au premier plan (les autres en pastille). Défaut : 3 sur téléphone, toutes sinon. */
+  max_labels?: number;
   /** Qualité du rendu : auto (défaut), high (occlusion + halo), low (tablettes modestes). */
   quality?: "auto" | "high" | "low";
   rooms?: RoomConfig[];
