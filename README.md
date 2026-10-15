@@ -35,6 +35,7 @@ wall_height: 2.5     # m
 sun_entity: sun.sun  # éclairage jour/nuit
 north: 0             # angle (°) entre le haut du plan et le nord
 compact_labels: false
+max_labels: 3        # étiquettes dépliées au premier plan (défaut : 3 sur téléphone, toutes sur grand écran)
 rooms:               # rectangles en mètres, x vers la droite, y vers le bas
   - name: Salon
     x: 0

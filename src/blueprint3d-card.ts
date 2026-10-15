@@ -760,11 +760,15 @@ class Blueprint3DCard extends HTMLElement {
       .filter((v) => v.label.element.style.display !== "none")
       .map((v) => {
         const el = v.labelEl;
-        const rank = el.classList.contains("selected") ? 0 : el.classList.contains("on") ? 1 : 2;
+        const rank = el.classList.contains("selected") ? 0 : 1;
         return { v, el, rank, dist: v.group.position.distanceToSquared(camPos) };
       })
       .sort((a, b) => a.rank - b.rank || a.dist - b.dist);
-    for (const { v, el } of items) {
+    // Seules les étiquettes au premier plan restent dépliées (3 sur téléphone par défaut) ;
+    // les autres deviennent des pastilles, à toucher pour ouvrir la fiche.
+    const limit = Math.round(this.config.max_labels ?? (this.stage.classList.contains("narrow") ? 3 : Infinity));
+    let open = 0;
+    for (const { v, el, rank } of items) {
       const a = v.label.element.getBoundingClientRect();
       const cx = (a.left + a.right) / 2;
       const by = a.bottom - 6;
@@ -774,7 +778,9 @@ class Blueprint3DCard extends HTMLElement {
       const full = { l: cx - w / 2, r: cx + w / 2, t: by - h, b: by };
       const dot = { l: cx - 10, r: cx + 10, t: by - 20, b: by };
       // Marge en plus pour redéplier une pastille : évite le clignotement à la limite.
-      const mode = !hits(full, mini ? 6 : 0) ? "full" : !hits(dot, 0) ? "mini" : "culled";
+      const room = rank === 0 || open < limit;
+      const mode = room && !hits(full, mini ? 6 : 0) ? "full" : !hits(dot, 0) ? "mini" : "culled";
+      if (mode === "full" && rank !== 0) open++;
       if (mode !== "culled") kept.push(mode === "full" ? full : dot);
       el.classList.toggle("mini", mode === "mini");
       el.classList.toggle("culled", mode === "culled");

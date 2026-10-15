@@ -14,6 +14,7 @@ export type Shape =
   | "go"
   | "bar"
   | "strip"
+  | "tube"
   | "hexa"
   | "tv_backlight"
   | "torchiere"
@@ -148,7 +149,8 @@ export const DEVICE_ITEMS: DeviceItem[] = [
     { id: "hue_flourish", name: "Hue Flourish (lampe de table)", category: "lighting", kind: "light", shape: "table_lamp", domains: LIGHT, height: 0.75, icon: "🛋️" },
     { id: "hue_twilight", name: "Hue Twilight (lampe de chevet)", category: "lighting", kind: "light", shape: "table_lamp", domains: LIGHT, height: 0.5, icon: "🛏️", aliases: "réveil lumineux" },
     { id: "hue_play", name: "Hue Play (barre lumineuse)", category: "lighting", kind: "light", shape: "bar", domains: LIGHT, height: 0.5, icon: "▮", aliases: "7820230p7 pack x2 duo" },
-    { id: "hue_play_tube", name: "Hue Play Gradient Light Tube", category: "lighting", kind: "light", shape: "strip", domains: LIGHT, height: 0.6, length: 0.75, icon: "▬" },
+    { id: "hue_play_tube", name: "Hue Play Gradient Light Tube (compact, 75 cm)", category: "lighting", kind: "light", shape: "tube", domains: LIGHT, length: 0.75, icon: "▬", aliases: "tube gradient tv meuble compact" },
+    { id: "hue_play_tube_large", name: "Hue Play Gradient Light Tube (large, 125 cm)", category: "lighting", kind: "light", shape: "tube", domains: LIGHT, length: 1.25, icon: "▬", aliases: "tube gradient tv meuble large" },
     { id: "hue_lightstrip", name: "Hue Lightstrip Plus", category: "lighting", kind: "light", shape: "strip", domains: LIGHT, height: 2.4, length: 2, icon: "〰️", aliases: "ruban bande" },
     { id: "hue_gradient_strip", name: "Hue Gradient Lightstrip", category: "lighting", kind: "light", shape: "strip", domains: LIGHT, height: 2.4, length: 2, icon: "🌈" },
     { id: "hue_gradient_tv", name: "Hue Play Gradient (TV)", category: "lighting", kind: "light", shape: "tv_backlight", domains: LIGHT, height: 0.95, icon: "📺", aliases: "ambilight sync" },
