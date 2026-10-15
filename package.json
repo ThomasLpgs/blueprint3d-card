@@ -1,0 +1,25 @@
+{
+  "name": "blueprint3d-card",
+  "version": "0.1.0",
+  "description": "Carte Lovelace Home Assistant : ta maison en 3D, avec tes appareils cliquables.",
+  "type": "module",
+  "license": "MIT",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "typecheck": "tsc --noEmit",
+    "test:e2e": "node tests/e2e/run.mjs",
+    "check": "tsc --noEmit && npm audit --omit=dev && node tests/e2e/run.mjs"
+  },
+  "dependencies": {
+    "js-yaml": "^4.3.2",
+    "three": "^0.170.0"
+  },
+  "devDependencies": {
+    "@types/js-yaml": "^4.0.9",
+    "@types/three": "^0.170.0",
+    "playwright-core": "^1.48.2",
+    "typescript": "^5.6.3",
+    "vite": "^7.3.7"
+  }
+}
