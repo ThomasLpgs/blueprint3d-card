@@ -22,7 +22,7 @@ Carte Lovelace pour Home Assistant : ta maison en 3D, avec tes lampes, clims, as
 
 1. Dans HACS, ouvre **⋮ → Dépôts personnalisés**, ajoute `https://github.com/ThomasLpgs/blueprint3d-card` en catégorie **Dashboard**. Le bouton ci-dessus fait la même chose.
 2. Cherche **Blueprint3D Card**, puis clique sur **Télécharger**. HACS ajoute la ressource tout seul.
-3. Recharge la page (vide le cache de l'appli sur téléphone), puis ajoute une carte **Manuel** avec `type: custom:blueprint3d-card`.
+3. Recharge la page (vide le cache de l'appli sur téléphone), puis [ajoute la carte à un tableau de bord](#ajouter-la-carte-à-un-tableau-de-bord).
 
 Les mises à jour apparaissent ensuite dans HACS.
 
@@ -31,7 +31,22 @@ Les mises à jour apparaissent ensuite dans HACS.
 1. Télécharge `blueprint3d-card.js` depuis la [dernière release](https://github.com/ThomasLpgs/blueprint3d-card/releases/latest) (ou `npm install` puis `npm run build`, qui le produit dans `dist/`).
 2. Copie `blueprint3d-card.js` dans `/config/www/` sur Home Assistant.
 3. Va dans **Paramètres → Tableaux de bord → ⋮ → Ressources** et ajoute `/local/blueprint3d-card.js` en type **Module JavaScript**.
-4. Ajoute une carte **Manuel** avec `type: custom:blueprint3d-card`.
+4. [Ajoute la carte à un tableau de bord](#ajouter-la-carte-à-un-tableau-de-bord).
+
+### Ajouter la carte à un tableau de bord
+
+La carte est plus agréable seule, en plein écran, sur son propre tableau de bord :
+
+1. **Crée le tableau de bord** : **Paramètres → Tableaux de bord → + Ajouter un tableau de bord → Nouveau tableau de bord à partir de zéro**. Donne-lui un titre (par exemple `Maison 3D`) et une icône (par exemple `mdi:home-floor-3`), laisse **Afficher dans la barre latérale** coché, puis **Créer**.
+2. Ouvre-le depuis la barre latérale et clique sur le crayon ✏️ (en haut à droite) pour le modifier.
+3. **Mets-le en plein écran** : clique sur le crayon à côté du nom de la vue, choisis **Type de vue : Panneau (1 carte)**, puis **Enregistrer**.
+4. **Ajoute la carte** : clique sur **+ Ajouter une carte**, puis, dans l'onglet **Par carte**, au choix :
+   - cherche `blueprint3d` et choisis **Blueprint3D Card** (chercher `type: custom:…` ne trouve rien : la recherche porte sur le nom de la carte) ;
+   - ou descends tout en bas de la liste, choisis **Manuel** et remplace le contenu par `type: custom:blueprint3d-card`.
+
+   Les deux donnent la même carte. Clique sur **Enregistrer**, puis sur **Terminé**.
+
+Sans config, la carte affiche un appartement de démo. Clique sur **✎ Éditer** dans la carte pour dessiner ton plan, puis sur **💾 Enregistrer**. Ta maison est stockée dans la config du tableau de bord (✏️ → ⋮ → **Éditeur de configuration brute**), pas dans le fichier JS : mettre à jour la carte ne la fait jamais perdre.
 
 ## Configuration
 

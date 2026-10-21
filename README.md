@@ -22,7 +22,7 @@ A Lovelace card for Home Assistant: your home in 3D, with your lights, air condi
 
 1. In HACS, open **⋮ → Custom repositories** and add `https://github.com/ThomasLpgs/blueprint3d-card` with the **Dashboard** category. The button above does the same.
 2. Search for **Blueprint3D Card** and click **Download**. HACS adds the resource for you.
-3. Reload the page (clear the companion app cache on your phone), then add a **Manual** card with `type: custom:blueprint3d-card`.
+3. Reload the page (clear the companion app cache on your phone), then [add the card to a dashboard](#add-the-card-to-a-dashboard).
 
 Updates then show up in HACS.
 
@@ -31,7 +31,22 @@ Updates then show up in HACS.
 1. Download `blueprint3d-card.js` from the [latest release](https://github.com/ThomasLpgs/blueprint3d-card/releases/latest) (or run `npm install` then `npm run build`, which writes it to `dist/`).
 2. Copy `blueprint3d-card.js` to `/config/www/` on Home Assistant.
 3. Go to **Settings → Dashboards → ⋮ → Resources** and add `/local/blueprint3d-card.js` as a **JavaScript module**.
-4. Add a **Manual** card with `type: custom:blueprint3d-card`.
+4. [Add the card to a dashboard](#add-the-card-to-a-dashboard).
+
+### Add the card to a dashboard
+
+The card works best on its own full-screen dashboard:
+
+1. **Create the dashboard**: **Settings → Dashboards → + Add dashboard → New dashboard from scratch**. Give it a title (e.g. `3D Home`) and an icon (e.g. `mdi:home-floor-3`), keep **Show in sidebar** ticked, then **Create**.
+2. Open it from the sidebar and click the pencil ✏️ (top right) to edit it.
+3. **Make it full screen**: click the pencil next to the view's name, set **View type** to **Panel (single card)**, then **Save**.
+4. **Add the card**: click **+ Add card**, then in the **By card** tab either:
+   - search for `blueprint3d` and pick **Blueprint3D Card** (searching for `type: custom:…` finds nothing: the search looks at the card's name), or
+   - scroll to the very bottom of the list, pick **Manual**, replace the content with `type: custom:blueprint3d-card`.
+
+   Both give the same card. Click **Save**, then **Done**.
+
+On an empty config, the card shows a demo apartment. Click **✎ Edit** in the card to draw your plan, then **💾 Save**. Your home is stored in the dashboard config (✏️ → ⋮ → **Raw configuration editor**), not in the JS file, so updating the card never loses it.
 
 ## Configuration
 
