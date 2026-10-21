@@ -2,6 +2,8 @@
 
 Carte Lovelace pour Home Assistant : ta maison en 3D, avec tes lampes, clims, aspirateur, volets, TV et capteurs. Tu cliques sur un appareil pour le piloter.
 
+![Blueprint3D Card : maison de démo en 3D](docs/screenshot.png)
+
 - La maison est **générée à partir d'un plan simple** (des pièces rectangulaires en mètres). Pas besoin de Blender.
 - Les murs sont créés automatiquement, et ceux tournés vers la caméra s'abaissent pour qu'on voie l'intérieur.
 - Les lampes allumées **éclairent vraiment la pièce**, avec leur couleur et leur luminosité.
@@ -12,16 +14,22 @@ Carte Lovelace pour Home Assistant : ta maison en 3D, avec tes lampes, clims, as
 
 ## Installation
 
-### Manuelle
-
-1. `npm install`, puis `npm run build`.
-2. Copie `dist/blueprint3d-card.js` dans `/config/www/` sur Home Assistant.
-3. Va dans **Paramètres → Tableaux de bord → ⋮ → Ressources** et ajoute `/local/blueprint3d-card.js` en type **Module JavaScript**.
-4. Ajoute une carte **Manuel** avec `type: custom:blueprint3d-card`.
-
 ### HACS
 
-Ajoute ce dépôt comme **dépôt personnalisé** dans HACS (catégorie *Dashboard*). Il faudra d'abord publier le dépôt sur GitHub avec `dist/blueprint3d-card.js` dans une release.
+[![Ouvrir dans HACS](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=ThomasLpgs&repository=blueprint3d-card&category=plugin)
+
+1. Dans HACS, ouvre **⋮ → Dépôts personnalisés**, ajoute `https://github.com/ThomasLpgs/blueprint3d-card` en catégorie **Dashboard**. Le bouton ci-dessus fait la même chose.
+2. Cherche **Blueprint3D Card**, puis clique sur **Télécharger**. HACS ajoute la ressource tout seul.
+3. Recharge la page (vide le cache de l'appli sur téléphone), puis ajoute une carte **Manuel** avec `type: custom:blueprint3d-card`.
+
+Les mises à jour apparaissent ensuite dans HACS.
+
+### Manuelle
+
+1. Télécharge `blueprint3d-card.js` depuis la [dernière release](https://github.com/ThomasLpgs/blueprint3d-card/releases/latest) (ou `npm install` puis `npm run build`, qui le produit dans `dist/`).
+2. Copie `blueprint3d-card.js` dans `/config/www/` sur Home Assistant.
+3. Va dans **Paramètres → Tableaux de bord → ⋮ → Ressources** et ajoute `/local/blueprint3d-card.js` en type **Module JavaScript**.
+4. Ajoute une carte **Manuel** avec `type: custom:blueprint3d-card`.
 
 ## Configuration
 
@@ -191,6 +199,8 @@ npm run build   # dist/blueprint3d-card.js
 npm run test:e2e  # 116 contrôles de bout en bout (Edge par défaut, H3D_BROWSER=chrome sinon)
 npm run check   # types + audit des dépendances + tests
 ```
+
+Pour publier une version : mettre le même numéro dans `package.json` et `VERSION` (`src/blueprint3d-card.ts`), puis pousser un tag `vX.Y.Z`. Le workflow `release.yml` construit la carte et joint `blueprint3d-card.js` à la release GitHub, que HACS propose ensuite en mise à jour.
 
 | Fichier | Rôle |
 |---|---|
