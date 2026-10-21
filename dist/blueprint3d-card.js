@@ -21327,13 +21327,15 @@ class ey {
             <button class="round" data-act="temp" data-delta="${r}">+</button>
           </div>`), Array.isArray(i.fan_modes) && i.fan_modes.length && (o += `<div class="row"><label>${B("fan_mode")}</label><div class="chips">${i.fan_modes.map((a) => `<button class="chip ${i.fan_mode === a ? "active" : ""}" data-act="fanmode" data-mode="${Nt(a)}">${Nt(a)}</button>`).join("")}</div></div>`), o;
       }
-      case "vacuum":
-        return `${i.battery_level != null ? `<div class="muted">${B("battery")} ${Nt(i.battery_level)} %</div>` : ""}<div class="chips">
-          <button class="chip" data-act="svc" data-svc="vacuum.start">▶ ${B("start")}</button>
-          <button class="chip" data-act="svc" data-svc="vacuum.pause">❚❚ ${B("pause")}</button>
-          <button class="chip" data-act="svc" data-svc="vacuum.return_to_base">⌂ ${B("dock")}</button>
-          <button class="chip" data-act="svc" data-svc="vacuum.locate">◎ ${B("locate")}</button>
+      case "vacuum": {
+        const n = i.battery_level != null ? `<div class="muted">${B("battery")} ${Nt(i.battery_level)} %</div>` : "", r = typeof i.supported_features == "number" ? i.supported_features : -1, o = (a) => (r & a) !== 0;
+        return `${n}<div class="chips">
+          ${o(8192) ? `<button class="chip" data-act="svc" data-svc="vacuum.start">▶ ${B("start")}</button>` : ""}
+          ${o(4) ? `<button class="chip" data-act="svc" data-svc="vacuum.pause">❚❚ ${B("pause")}</button>` : o(8) ? `<button class="chip" data-act="svc" data-svc="vacuum.stop">■ ${B("stop")}</button>` : ""}
+          ${o(16) ? `<button class="chip" data-act="svc" data-svc="vacuum.return_to_base">⌂ ${B("dock")}</button>` : ""}
+          ${o(512) ? `<button class="chip" data-act="svc" data-svc="vacuum.locate">◎ ${B("locate")}</button>` : ""}
         </div>`;
+      }
       case "cover": {
         let n = `<div class="chips">
           <button class="chip" data-act="svc" data-svc="cover.open_cover">▲ ${B("open")}</button>

@@ -316,11 +316,15 @@ export class DevicePanel {
       }
       case "vacuum": {
         const battery = a.battery_level != null ? `<div class="muted">${t("battery")} ${esc(a.battery_level)} %</div>` : "";
+        // Bits VacuumEntityFeature de HA ; sans supported_features on affiche tout.
+        const f = typeof a.supported_features === "number" ? a.supported_features : -1;
+        const has = (bit: number) => (f & bit) !== 0;
         return `${battery}<div class="chips">
-          <button class="chip" data-act="svc" data-svc="vacuum.start">▶ ${t("start")}</button>
-          <button class="chip" data-act="svc" data-svc="vacuum.pause">❚❚ ${t("pause")}</button>
-          <button class="chip" data-act="svc" data-svc="vacuum.return_to_base">⌂ ${t("dock")}</button>
-          <button class="chip" data-act="svc" data-svc="vacuum.locate">◎ ${t("locate")}</button>
+          ${has(8192) ? `<button class="chip" data-act="svc" data-svc="vacuum.start">▶ ${t("start")}</button>` : ""}
+          ${has(4) ? `<button class="chip" data-act="svc" data-svc="vacuum.pause">❚❚ ${t("pause")}</button>`
+            : has(8) ? `<button class="chip" data-act="svc" data-svc="vacuum.stop">■ ${t("stop")}</button>` : ""}
+          ${has(16) ? `<button class="chip" data-act="svc" data-svc="vacuum.return_to_base">⌂ ${t("dock")}</button>` : ""}
+          ${has(512) ? `<button class="chip" data-act="svc" data-svc="vacuum.locate">◎ ${t("locate")}</button>` : ""}
         </div>`;
       }
       case "cover": {

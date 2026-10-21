@@ -75,6 +75,16 @@ const labelText = (page, needle) =>
   await page.waitForTimeout(3000);
   p = await pos();
   check("rotation de la carte (90°)", Math.abs(p.x) < 0.08 && Math.abs(p.z - 1) < 0.08, JSON.stringify(p));
+  // Xiaomi X20+ : start + stop + return_home, sans pause ni locate.
+  await setState(page, "vacuum.robot", "docked", { supported_features: 8192 | 8 | 16 });
+  await page.locator(".dev-label", { hasText: "Robot" }).first().click();
+  await page.waitForTimeout(300);
+  const svcs = await page.locator(".panel [data-svc]").evaluateAll((els) => els.map((b) => b.dataset.svc));
+  check(
+    "boutons aspirateur selon supported_features",
+    svcs.join(",") === "vacuum.start,vacuum.stop,vacuum.return_to_base",
+    svcs.join(","),
+  );
   await page.close();
 }
 
