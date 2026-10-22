@@ -157,6 +157,45 @@ const labelText = (page, needle) =>
   await page.close();
 }
 
+// ---------- TV LG sur barre de son : volume +/− au lieu du curseur ----------
+{
+  const page = await open("");
+  // webOS avec sortie ARC : pause, sourdine, précédent, suivant, source, lecture, volume +/− (pas de volume_set).
+  await setState(page, "media_player.tv", "playing", { supported_features: 1 | 8 | 16 | 32 | 256 | 512 | 1024 | 2048 | 16384, is_volume_muted: false });
+  await page.evaluate(() => {
+    const c = document.querySelector("blueprint3d-card");
+    window.__calls = [];
+    c.hass = { ...c._hass, callService: async (...a) => window.__calls.push(a) };
+  });
+  await page.evaluate(() => {
+    const c = document.querySelector("blueprint3d-card");
+    c.openPanel(c.views.find((v) => v.cfg.entity === "media_player.tv"));
+  });
+  await page.waitForTimeout(300);
+  const tv = await page.evaluate(() => {
+    const p = document.querySelector("blueprint3d-card").shadowRoot.querySelector(".panel");
+    return { slider: !!p.querySelector("input[data-field=volume]"), svcs: [...p.querySelectorAll("[data-svc]")].map((b) => b.dataset.svc), mute: !!p.querySelector("[data-act=mute]") };
+  });
+  check("TV sans volume_set : pas de curseur, boutons − / + et sourdine", !tv.slider && tv.svcs.includes("media_player.volume_up") && tv.svcs.includes("media_player.volume_down") && tv.mute, JSON.stringify(tv));
+  await page.locator(".panel [data-svc='media_player.volume_up']").click();
+  await page.locator(".panel [data-act=mute]").click();
+  const calls = await page.evaluate(() => window.__calls.map(([d, s, data]) => `${d}.${s}:${JSON.stringify(data)}`));
+  check(
+    "volume + et sourdine envoyés à la TV",
+    calls.some((c) => c.startsWith("media_player.volume_up:") && c.includes("media_player.tv")) && calls.some((c) => c.startsWith("media_player.volume_mute:") && c.includes('"is_volume_muted":true')),
+    calls.join(" | "),
+  );
+  // Avec volume_set (bit 4) : le curseur revient.
+  await setState(page, "media_player.tv", "playing", { supported_features: 4 | 8 | 1024 | 1 | 16384 });
+  await page.evaluate(() => {
+    const c = document.querySelector("blueprint3d-card");
+    c.openPanel(c.views.find((v) => v.cfg.entity === "media_player.tv"));
+  });
+  await page.waitForTimeout(300);
+  check("TV avec volume_set : curseur affiché", (await page.locator(".panel input[data-field=volume]").count()) === 1);
+  await page.close();
+}
+
 // ---------- 8. Caméra ----------
 {
   const page = await open("");

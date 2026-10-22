@@ -25,7 +25,7 @@ import { toYaml } from "./yaml";
 const esc = (s: unknown) =>
   String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
 
-const VERSION = "0.2.0";
+const VERSION = "0.2.1";
 const WALL_MODES: WallMode[] = ["ghost", "cutaway", "low", "full"];
 const CLICK_SLOP = 6;
 const LONG_PRESS_MS = 550;

@@ -342,13 +342,33 @@ export class DevicePanel {
           ? slider("percentage", t("speed"), Number(a.percentage) || 0, 0, 100, Number(a.percentage_step) || 1, "%")
           : "";
       case "media_player": {
-        let html = `<div class="chips">
-          <button class="chip" data-act="svc" data-svc="media_player.media_previous_track" title="${t("previous")}">${icon("prev")}</button>
-          <button class="chip" data-act="svc" data-svc="media_player.media_play_pause" title="${t("play_pause")}">${icon("playpause")}</button>
-          <button class="chip" data-act="svc" data-svc="media_player.media_next_track" title="${t("next")}">${icon("next")}</button>
-        </div>`;
+        // Bits MediaPlayerEntityFeature de HA ; sans supported_features on affiche tout.
+        // Ex. TV LG reliée à une barre de son (ARC, optique) : pas de volume_set, seulement volume +/−.
+        const f = typeof a.supported_features === "number" ? a.supported_features : -1;
+        const has = (bit: number) => (f & bit) !== 0;
+        const transport = [
+          has(16) ? `<button class="chip" data-act="svc" data-svc="media_player.media_previous_track" title="${t("previous")}">${icon("prev")}</button>` : "",
+          has(1) || has(16384) ? `<button class="chip" data-act="svc" data-svc="media_player.media_play_pause" title="${t("play_pause")}">${icon("playpause")}</button>` : "",
+          has(32) ? `<button class="chip" data-act="svc" data-svc="media_player.media_next_track" title="${t("next")}">${icon("next")}</button>` : "",
+        ].join("");
+        let html = transport ? `<div class="chips">${transport}</div>` : "";
         if (a.media_title) html = `<div class="muted">${esc(a.media_artist ? `${a.media_artist} — ` : "")}${esc(a.media_title)}</div>` + html;
-        if (typeof a.volume_level === "number") html += slider("volume", t("volume"), Math.round(a.volume_level * 100), 0, 100, 1, "%");
+        const level = typeof a.volume_level === "number" ? Math.round(a.volume_level * 100) : undefined;
+        const mute = has(8)
+          ? `<button class="chip ${a.is_volume_muted ? "active" : ""}" data-act="mute" title="${t("mute")}">${icon(a.is_volume_muted ? "mute" : "volume")}</button>`
+          : "";
+        if (has(4) && level !== undefined) {
+          html += slider("volume", t("volume"), level, 0, 100, 1, "%");
+          if (mute) html += `<div class="chips">${mute}</div>`;
+        } else if (has(1024) || mute) {
+          html += `<div class="row"><label>${t("volume")}<output>${level !== undefined ? `${level} %` : ""}</output></label>
+            <div class="chips">${
+              has(1024)
+                ? `<button class="chip" data-act="svc" data-svc="media_player.volume_down" title="${t("volume_down")}">${icon("minus")}</button>
+                   <button class="chip" data-act="svc" data-svc="media_player.volume_up" title="${t("volume_up")}">${icon("plus")}</button>`
+                : ""
+            }${mute}</div></div>`;
+        }
         return html;
       }
       case "sensor":
@@ -392,6 +412,9 @@ export class DevicePanel {
         this.call(d, s);
         break;
       }
+      case "mute":
+        this.call("media_player", "volume_mute", { is_volume_muted: !a.is_volume_muted });
+        break;
       case "more":
         this.opts.onMoreInfo(this.cfg.entity);
         break;
