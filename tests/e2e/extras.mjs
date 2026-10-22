@@ -49,6 +49,75 @@ const labelText = (page, needle) =>
   await page.close();
 }
 
+// ---------- Rendu : murs transparents, tuiles d'infos, icônes ----------
+{
+  const page = await open("");
+  const walls = () =>
+    page.evaluate(() => {
+      const pieces = document.querySelector("blueprint3d-card").house.pieces;
+      return {
+        ghost: pieces.filter((p) => p.fade === 1).length,
+        ghostIntact: pieces.filter((p) => p.fade === 1).every((p) => p.parts.every((x) => x.mesh.visible && x.mesh.scale.y === 1)),
+        ghostSeeThrough: pieces.filter((p) => p.fade === 1).every((p) => p.mats.every((m) => m.mat.transparent && m.mat.opacity < 0.5)),
+        lowered: pieces.filter((p) => p.t === 1).length,
+        opaqueAgain: pieces.every((p) => p.fade > 0 || p.mats.every((m) => m.mat.transparent === m.transparent && m.mat.opacity === m.opacity)),
+      };
+    });
+  const w1 = await walls();
+  check("murs côté caméra estompés (pleine hauteur, translucides)", w1.ghost > 0 && w1.ghostIntact && w1.ghostSeeThrough && w1.lowered === 0, JSON.stringify(w1));
+  await page.locator("[data-act=walls]").click();
+  await page.waitForTimeout(800);
+  const w2 = await walls();
+  check("mode « coupe » : murs rabaissés et de nouveau opaques", w2.ghost === 0 && w2.lowered > 0 && w2.opaqueAgain, JSON.stringify(w2));
+
+  const tiles = await page.locator(".stats .stat").allTextContents();
+  check("tuiles d'infos (conso, intérieur, humidité, lumières, ouvertures)", tiles.length === 5 && tiles.some((t) => t.includes("2,31 kW")), tiles.join(" | "));
+  await page.locator(".stat[data-heat=temperature]").click();
+  await page.waitForTimeout(200);
+  const on = await page.evaluate(() => {
+    const root = document.querySelector("blueprint3d-card").shadowRoot;
+    return { legend: !root.querySelector(".legend").hidden, active: root.querySelector(".stat[data-heat=temperature]").classList.contains("active"), btn: root.querySelector("[data-act=heat]").textContent };
+  });
+  check("tuile température → carte de chaleur", on.legend && on.active && on.btn.includes("Température"), JSON.stringify(on));
+  await page.locator(".stat[data-heat=temperature]").click();
+  await page.waitForTimeout(200);
+  check("second appui : carte de chaleur coupée", await page.locator(".legend").isHidden());
+
+  const ui = await page.evaluate(() => {
+    const root = document.querySelector("blueprint3d-card").shadowRoot;
+    return {
+      bars: root.querySelector(".toolbar").textContent + root.querySelector(".editbar").textContent + root.querySelector(".stats").textContent,
+      icons: root.querySelectorAll(".toolbar svg.ic, .dev-label .dot svg.ic").length,
+      room: [...root.querySelectorAll(".room-label")].map((l) => l.textContent).find((t) => t.startsWith("Séjour")),
+    };
+  });
+  check("aucun emoji dans les barres", !/\p{Extended_Pictographic}/u.test(ui.bars), ui.bars);
+  check("icônes au trait (barre + pastilles)", ui.icons > 10, String(ui.icons));
+  check("étiquette de pièce avec température", ui.room?.includes("°"), ui.room);
+
+  // Étiquettes dépliées seulement pour les pièces au premier plan ; les autres en pastilles.
+  const labelsByRoom = () =>
+    page.evaluate(() => {
+      const c = document.querySelector("blueprint3d-card");
+      c.declutter(true);
+      const front = c.frontRooms();
+      const rows = c.views.map((v) => ({ room: c.house.roomAt(v.group.position.x, v.group.position.z)?.name, full: !v.labelEl.classList.contains("mini") && !v.labelEl.classList.contains("culled") }));
+      return { front: [...front], fullBehind: rows.filter((r) => r.full && r.room && !front.has(r.room)).length, full: rows.filter((r) => r.full).length, mini: rows.filter((r) => !r.full).length };
+    });
+  const l1 = await labelsByRoom();
+  check("pièces du fond : pastilles seulement", l1.fullBehind === 0 && l1.mini > 0 && l1.full > 0, JSON.stringify(l1));
+  await page.evaluate(() => document.querySelector("blueprint3d-card").openRoom("Cuisine"));
+  await page.waitForTimeout(200);
+  const kitchen = await page.evaluate(() => {
+    const c = document.querySelector("blueprint3d-card");
+    c.declutter(true);
+    return c.views.filter((v) => c.house.roomAt(v.group.position.x, v.group.position.z)?.name === "Cuisine").some((v) => !v.labelEl.classList.contains("mini") && !v.labelEl.classList.contains("culled"));
+  });
+  // (deux appareils qui se chevauchent à l'écran gardent une pastille : au moins un se déplie)
+  check("pièce ouverte : ses étiquettes se déplient", kitchen && !l1.front.includes("Cuisine"), l1.front.join(", "));
+  await page.close();
+}
+
 // ---------- 7. Aspirateur : position réelle ----------
 {
   const page = await open("&realvacuum");

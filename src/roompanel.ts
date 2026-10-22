@@ -1,5 +1,6 @@
 import { entityName, isActive, stateText } from "./devices";
 import { t } from "./i18n";
+import { icon } from "./icons";
 import { fmtWatts } from "./entities";
 import { fmt1, type RoomStats } from "./rooms";
 import { DOMAIN_TO_KIND, kindOf, type DeviceConfig, type HomeAssistant } from "./types";
@@ -71,11 +72,11 @@ export class RoomPanel {
     this.signature = this.computeSignature();
     const lights = r.devices.filter((d) => d.entity && this.kind(d) === "light");
     const chips = [
-      r.temp !== undefined ? `<span class="chip-info">🌡️ ${fmt1(r.temp)} °C</span>` : "",
-      r.hum !== undefined ? `<span class="chip-info">💧 ${fmt1(r.hum)} %</span>` : "",
-      r.motion ? `<span class="chip-info motion">👋 ${t("motion")}</span>` : "",
-      r.power !== undefined ? `<span class="chip-info">⚡ ${fmtWatts(r.power)}</span>` : "",
-      lights.length ? `<span class="chip-info">💡 ${lights.filter((d) => this.hass?.states[d.entity]?.state === "on").length}/${lights.length}</span>` : "",
+      r.temp !== undefined ? `<span class="chip-info">${icon("thermometer")}${fmt1(r.temp)} °C</span>` : "",
+      r.hum !== undefined ? `<span class="chip-info">${icon("droplet")}${fmt1(r.hum)} %</span>` : "",
+      r.motion ? `<span class="chip-info motion">${icon("walk")}${t("motion")}</span>` : "",
+      r.power !== undefined ? `<span class="chip-info">${icon("bolt")}${fmtWatts(r.power)}</span>` : "",
+      lights.length ? `<span class="chip-info">${icon("bulb")}${lights.filter((d) => this.hass?.states[d.entity]?.state === "on").length}/${lights.length}</span>` : "",
     ].join("");
     const rows = r.devices
       .map((d, i) => {
@@ -95,13 +96,13 @@ export class RoomPanel {
           <div class="pn">${esc(r.name)}</div>
           <div class="ps">${fmt1(r.area)} m² · ${r.devices.length} ${t("devices_count")}</div>
         </div>
-        <button class="icon-btn" data-act="close" title="${t("close")}">✕</button>
+        <button class="icon-btn" data-act="close" title="${t("close")}">${icon("close")}</button>
       </div>
       <div class="panel-body">
         ${chips ? `<div class="chips">${chips}</div>` : ""}
         ${
           lights.length
-            ? `<div class="chips"><button class="chip" data-act="all-on">💡 ${t("all_on")}</button><button class="chip" data-act="all-off">🌙 ${t("all_off")}</button></div>`
+            ? `<div class="chips"><button class="chip" data-act="all-on">${icon("bulb")}${t("all_on")}</button><button class="chip" data-act="all-off">${icon("moon")}${t("all_off")}</button></div>`
             : ""
         }
         <div class="room-list">${rows || `<div class="muted">${t("no_devices")}</div>`}</div>

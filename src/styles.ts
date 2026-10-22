@@ -7,8 +7,23 @@ export const styles = `
   --h3d-muted: var(--secondary-text-color, #6b7280);
   --h3d-surface: color-mix(in srgb, var(--card-background-color, #ffffff) 88%, transparent);
   --h3d-border: color-mix(in srgb, var(--h3d-text) 12%, transparent);
+  --h3d-shadow: 0 1px 2px rgba(0, 0, 0, 0.06), 0 4px 14px rgba(0, 0, 0, 0.08);
 }
 [hidden] { display: none !important; }
+.ic { width: 1.15em; height: 1.15em; flex: none; display: block; }
+/* Icônes dans les pastilles, puces, titres et boutons ronds. */
+.with-ic { display: inline-flex; align-items: center; gap: 7px; }
+.with-ic .ic { width: 17px; height: 17px; opacity: 0.75; }
+.icon-btn { display: inline-flex; align-items: center; justify-content: center; }
+.icon-btn .ic { width: 17px; height: 17px; }
+.round { display: inline-flex; align-items: center; justify-content: center; }
+.round .ic { width: 18px; height: 18px; }
+.panel button.chip, .chip-info { display: inline-flex; align-items: center; gap: 5px; }
+.panel button.chip .ic, .chip-info .ic { width: 14px; height: 14px; opacity: 0.8; }
+.plan-tools button .ic { width: 15px; height: 15px; }
+.editbar .status { display: inline-flex; align-items: center; gap: 4px; }
+.editbar .status .ic { width: 14px; height: 14px; }
+.editbar .status.dirty::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
 ha-card, .card {
   height: 100%;
   overflow: hidden;
@@ -41,6 +56,7 @@ ha-card, .card {
 .labels { position: absolute; inset: 0; pointer-events: none; overflow: hidden; z-index: 1; }
 
 .room-label {
+  display: flex; flex-direction: column; align-items: center; gap: 3px;
   font: 600 10px/1 system-ui, sans-serif;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -48,6 +64,15 @@ ha-card, .card {
   pointer-events: none;
   white-space: nowrap;
 }
+/* Pièce avec des infos : petite plaque discrète (nom + température, humidité, lumières). */
+.room-label.with-info {
+  padding: 4px 8px 5px; border-radius: 9px;
+  background: color-mix(in srgb, var(--card-background-color, #fff) 62%, transparent);
+  backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+}
+.room-label .ri { display: flex; gap: 7px; font: 500 10.5px/1 system-ui, sans-serif; letter-spacing: 0; text-transform: none; color: var(--h3d-text); }
+.room-label .ri > span { display: inline-flex; align-items: center; gap: 2px; font-variant-numeric: tabular-nums; }
+.room-label .ri .ic { width: 11px; height: 11px; opacity: 0.6; }
 
 .dev-anchor { pointer-events: none; height: 0; display: flex; justify-content: center; align-items: flex-end; }
 .dev-label {
@@ -56,7 +81,7 @@ ha-card, .card {
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 4px 9px 4px 6px;
+  padding: 3px 10px 3px 3px;
   border-radius: 999px;
   background: var(--h3d-surface);
   backdrop-filter: blur(8px);
@@ -71,28 +96,40 @@ ha-card, .card {
   transition: transform 0.15s, box-shadow 0.15s, opacity 0.2s;
 }
 .dev-label:hover { transform: scale(1.06); }
+/* Pastille ronde avec l'icône du type d'appareil ; colorée quand l'appareil est actif. */
 .dev-label .dot {
-  width: 8px; height: 8px; border-radius: 50%;
-  background: color-mix(in srgb, var(--h3d-text) 25%, transparent);
+  width: 22px; height: 22px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  background: color-mix(in srgb, var(--h3d-text) 8%, transparent);
+  color: var(--h3d-muted);
   flex: none;
+  transition: background 0.2s, color 0.2s, box-shadow 0.2s;
 }
-.dev-label.on .dot { background: var(--dev-color); box-shadow: 0 0 8px var(--dev-color); }
+.dev-label .dot .ic { width: 13px; height: 13px; }
+.dev-label.on .dot { background: var(--dev-color); color: rgba(30, 24, 16, 0.85); box-shadow: 0 0 10px color-mix(in srgb, var(--dev-color) 70%, transparent); }
 .dev-label .txt { display: flex; flex-direction: column; }
 .dev-label .s { font-size: 10px; color: var(--h3d-muted); }
 .dev-label.unavailable { opacity: 0.55; }
 .dev-label.selected { box-shadow: 0 0 0 2px var(--h3d-accent), 0 2px 10px rgba(0, 0, 0, 0.2); }
 .hide-labels .dev-label .txt { display: none; }
-.hide-labels .dev-label { padding: 5px; }
+.hide-labels .dev-label { padding: 3px; }
 .dev-label { position: relative; }
 /* Étiquettes qui se chevauchent : réduites à une pastille, ou masquées (l'objet 3D reste cliquable). */
-.dev-label.mini { padding: 5px; gap: 0; }
+.dev-label.mini, .narrow .dev-label.mini { padding: 2px; gap: 0; }
 .dev-label.mini .txt { display: none; }
+/* Au survol, une pastille réduite montre son nom (souris uniquement). */
+@media (hover: hover) {
+  .dev-label.mini:hover { padding: 3px 10px 3px 3px; gap: 6px; }
+  .dev-label.mini:hover .txt { display: flex; }
+}
 .dev-label.mini::after { content: ""; position: absolute; inset: -8px; border-radius: 50%; }
 .dev-label.culled, .room-label.culled { visibility: hidden; pointer-events: none; }
 /* Téléphone : étiquettes compactes (l'état reste affiché pour les capteurs et clims). */
-.narrow .dev-label { font-size: 10px; padding: 3px 7px 3px 5px; gap: 4px; }
+.narrow .dev-label { font-size: 10px; padding: 2px 8px 2px 2px; gap: 4px; }
 .narrow .dev-label:not(.kind-sensor):not(.kind-climate) .s { display: none; }
-.narrow .dev-label .dot { width: 7px; height: 7px; }
+.narrow .dev-label .dot { width: 18px; height: 18px; }
+.narrow .dev-label .dot .ic { width: 11px; height: 11px; }
+.narrow .toolbar [data-act="recenter"] .lbl, .narrow .toolbar [data-act="edit"] .lbl { display: none; }
 /* Téléphone : la fiche s'ouvre en bas, la scène reste visible au-dessus. */
 .narrow .panel { top: auto; bottom: 10px; left: 10px; right: 10px; width: auto; max-height: 50%; }
 /* Téléphone : barre d'outils à droite, infos (présence, compteur, alertes) à gauche, sans se chevaucher. */
@@ -109,6 +146,14 @@ ha-card, .card {
   display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end;
   z-index: 2;
 }
+.toolbar button, .editbar button {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-weight: 600 !important;
+  box-shadow: var(--h3d-shadow);
+  transition: border-color 0.15s, background 0.15s;
+}
+.toolbar button .ic, .editbar button .ic { width: 15px; height: 15px; opacity: 0.8; }
+.toolbar button.active .ic, .editbar button.primary .ic, .editbar .tabs button.active .ic { opacity: 1; }
 .toolbar button, .editbar button, .editbar select, .panel button.chip, .modal button {
   font: 500 12px system-ui, sans-serif;
   color: var(--h3d-text);
@@ -280,6 +325,9 @@ ha-card, .card {
 .editbar .tabs button { border: none; border-radius: 0; }
 .editbar .tabs button.active { background: var(--h3d-accent); color: #fff; }
 .editbar .spacer { flex: 1; }
+.editbar button.undo, .editbar [data-act="import"], .editbar [data-act="export"] { padding: 6px 9px; }
+.editbar [data-act="import"] .lbl, .editbar [data-act="export"] .lbl { display: none; }
+.editbar button.undo:disabled { opacity: 0.4; cursor: default; box-shadow: none; }
 .editbar .status { font: 12px system-ui, sans-serif; color: var(--h3d-muted); }
 .editbar .status.dirty { color: var(--warning-color, #e0a030); }
 .editbar button.primary { background: var(--h3d-accent); color: #fff; border-color: transparent; }
@@ -288,7 +336,7 @@ ha-card, .card {
 @media (max-width: 720px) { .plan-props { top: auto; bottom: 56px; width: calc(100% - 20px); max-height: 45%; } .plan-hint { display: none; } }
 
 .library {
-  position: absolute; top: 10px; left: 10px; bottom: 58px; z-index: 4;
+  position: absolute; top: 10px; left: 10px; bottom: calc(var(--h3d-editbar, 36px) + 20px); z-index: 4;
   width: min(360px, calc(100% - 20px));
   background: var(--card-background-color, #fff); color: var(--h3d-text);
   border: 1px solid var(--h3d-border); border-radius: 14px;
@@ -321,7 +369,8 @@ ha-card, .card {
   border: 1px solid var(--h3d-border); background: transparent; color: var(--h3d-text);
 }
 .lib-item:hover { border-color: var(--h3d-accent); background: color-mix(in srgb, var(--h3d-accent) 8%, transparent); }
-.lib-item .ico { font-size: 22px; line-height: 1.2; }
+.lib-item .ico { width: 34px; height: 34px; border-radius: 10px; display: flex; align-items: center; justify-content: center; color: var(--h3d-accent); background: color-mix(in srgb, var(--h3d-accent) 12%, transparent); margin-bottom: 2px; }
+.lib-item .ico .ic { width: 19px; height: 19px; }
 .lib-item .nm { font: 500 11px/1.2 system-ui, sans-serif; }
 .lib-item .br { font-size: 10px; color: var(--h3d-muted); }
 .panel-edit { display: flex; flex-direction: column; gap: 8px; padding: 8px 14px; border-top: 1px solid var(--h3d-border); }
@@ -344,7 +393,7 @@ ha-card, .card {
 .panel-edit .presets .chip:hover { border-color: var(--h3d-accent); }
 
 .room-label.selected { color: var(--h3d-accent); font-size: 12px; }
-.room-label.with-info { color: rgba(40, 32, 24, 0.75); }
+.room-label.with-info { color: color-mix(in srgb, var(--h3d-text) 78%, transparent); }
 .overlay-left {
   position: absolute; top: 10px; left: 10px; z-index: 2;
   display: flex; flex-direction: column; gap: 6px; align-items: flex-start; max-width: 55%;
@@ -365,8 +414,9 @@ ha-card, .card {
 .person.home { color: var(--h3d-text); }
 .person.home img, .person.home .initial { filter: none; opacity: 1; box-shadow: 0 0 0 2px #4cd97b; }
 .alert {
+  display: flex; align-items: center; gap: 7px;
   font: 600 12px system-ui, sans-serif; color: #fff; background: #d93b30;
-  padding: 6px 10px; border-radius: 8px; box-shadow: 0 4px 14px rgba(217, 59, 48, 0.35);
+  padding: 7px 12px 7px 10px; border-radius: 12px; box-shadow: 0 4px 14px rgba(217, 59, 48, 0.35);
   animation: h3d-pulse 1.6s ease-in-out infinite;
 }
 @keyframes h3d-pulse { 50% { box-shadow: 0 4px 22px rgba(217, 59, 48, 0.6); } }
@@ -376,12 +426,14 @@ ha-card, .card {
   display: flex; gap: 6px; flex-wrap: wrap;
 }
 .scenes .scene {
-  font: 500 12px system-ui, sans-serif; color: var(--h3d-text);
+  display: inline-flex; align-items: center; gap: 6px; box-shadow: var(--h3d-shadow);
+  font: 600 12px system-ui, sans-serif; color: var(--h3d-text);
   background: var(--h3d-surface); border: 1px solid var(--h3d-border); border-radius: 999px;
   padding: 7px 12px; cursor: pointer; backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
   transition: transform 0.15s, background 0.2s;
 }
 .scenes .scene:hover { border-color: var(--h3d-accent); }
+.scenes .scene .ic, .scenes .scene ha-icon { width: 15px; height: 15px; --mdc-icon-size: 15px; opacity: 0.8; }
 .scenes .scene.fired { background: var(--h3d-accent); color: #fff; transform: scale(0.96); }
 .legend {
   position: absolute; left: 50%; transform: translateX(-50%); bottom: 56px; z-index: 2;
@@ -424,11 +476,39 @@ ha-card, .card {
   border: 1px solid var(--h3d-border); border-radius: 6px; padding: 6px;
 }
 @media (max-width: 600px) { .settings-grid { grid-template-columns: 1fr; } }
-.meter {
-  font: 600 12px system-ui, sans-serif; color: var(--h3d-text); pointer-events: auto;
-  background: var(--h3d-surface); border: 1px solid var(--h3d-border); border-radius: 999px; padding: 4px 10px;
+/* Tuiles d'infos en haut à gauche (consommation, moyennes, lumières, ouvertures). */
+.stats { display: flex; flex-wrap: wrap; gap: 6px; }
+.stats:empty { display: none; }
+.stat {
+  --stat-color: var(--h3d-accent);
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 4px 11px 4px 4px; border-radius: 13px; margin: 0;
+  background: var(--h3d-surface); border: 1px solid var(--h3d-border); box-shadow: var(--h3d-shadow);
   backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+  color: var(--h3d-text); font: inherit; text-align: left; pointer-events: auto;
 }
+button.stat { cursor: pointer; transition: border-color 0.15s, box-shadow 0.15s; }
+button.stat:hover { border-color: var(--stat-color); }
+.stat.active { border-color: var(--stat-color); box-shadow: 0 0 0 1px var(--stat-color), var(--h3d-shadow); }
+.stat .ic {
+  width: 15px; height: 15px; padding: 6px; border-radius: 9px;
+  color: var(--stat-color); background: color-mix(in srgb, var(--stat-color) 14%, transparent);
+}
+.stat .st { display: flex; flex-direction: column; gap: 2px; }
+.stat small { font: 600 9.5px/1 system-ui, sans-serif; letter-spacing: 0.05em; text-transform: uppercase; color: var(--h3d-muted); }
+.stat b { font: 650 13px/1.1 system-ui, sans-serif; font-variant-numeric: tabular-nums; }
+.stat.s-bolt { --stat-color: #e8a317; }
+.stat.s-thermometer { --stat-color: #e5734b; }
+.stat.s-droplet { --stat-color: #3d8fd6; }
+.stat.s-bulb { --stat-color: #9a8f80; }
+.stat.s-bulb.lit { --stat-color: #e8a317; }
+.stat.s-door { --stat-color: #7a8794; }
+.stat.s-door.warn { --stat-color: #d93b30; }
+.narrow .stats { display: grid; grid-template-columns: repeat(2, max-content); gap: 4px; }
+.narrow .stat { padding: 2px 8px 2px 2px; gap: 5px; border-radius: 11px; }
+.narrow .stat small { display: none; }
+.narrow .stat .ic { width: 13px; height: 13px; padding: 5px; }
+.narrow .stat b { font-size: 12px; }
 .scene-list label.check { display: flex; gap: 8px; align-items: center; }
 
 /* Listes déroulantes : couleurs du thème HA, y compris la liste ouverte (sinon texte clair sur fond blanc en thème sombre). */

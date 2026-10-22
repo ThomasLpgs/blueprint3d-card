@@ -109,7 +109,7 @@ export function entityOptions(hass: HomeAssistant | undefined, platforms: Platfo
   return (
     `<option value="" ${!cfg.entity ? "selected" : ""}>${t("none")}</option>` +
     missing +
-    group(`★ ${t("suggestions")}${item && item.brand !== "Générique" ? ` (${item.brand})` : ""}`, suggested) +
+    group(`${t("suggestions")}${item && item.brand !== "Générique" ? ` (${item.brand})` : ""}`, suggested) +
     group(t("compatible"), rest) +
     group(t("other_entities"), others)
   );
@@ -127,5 +127,5 @@ export function modelOptions(cfg: DeviceConfig): string {
       return list.length ? `<optgroup label="${esc(t(`cat_${c}`))}">${list.map(opt).join("")}</optgroup>` : "";
     })
     .join("");
-  return `<option value="" ${!cfg.model ? "selected" : ""}>${t("model_default")}</option>` + `<optgroup label="★">${same.map(opt).join("")}</optgroup>` + groups;
+  return `<option value="" ${!cfg.model ? "selected" : ""}>${t("model_default")}</option>` + `<optgroup label="${esc(t("same_kind"))}">${same.map(opt).join("")}</optgroup>` + groups;
 }

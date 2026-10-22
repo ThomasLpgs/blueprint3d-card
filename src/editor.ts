@@ -1,6 +1,7 @@
 import { deviceItem, type DeviceItem } from "./catalog";
 import { WALL_T } from "./house";
 import { t } from "./i18n";
+import { drawIcon, icon, type IconName } from "./icons";
 import {
   FURNITURE_TYPES,
   kindOf,
@@ -680,21 +681,21 @@ export class PlanEditor {
   }
 
   private renderTools(): void {
-    const tool = (id: Tool, icon: string) =>
-      `<button data-tool="${id}" class="${this.tool === id ? "active" : ""}" title="${t(`tool_${id}`)}">${icon}<span>${t(`tool_${id}`)}</span></button>`;
+    const tool = (id: Tool, ic: IconName) =>
+      `<button data-tool="${id}" class="${this.tool === id ? "active" : ""}" title="${t(`tool_${id}`)}">${icon(ic)}<span>${t(`tool_${id}`)}</span></button>`;
     this.toolsEl.innerHTML = `
-      ${tool("select", "↖")}
-      ${tool("room", "▭")}
-      ${tool("door", "◜")}
-      ${tool("glass_door", "◫")}
-      ${tool("window", "☰")}
+      ${tool("select", "cursor")}
+      ${tool("room", "square")}
+      ${tool("door", "door")}
+      ${tool("glass_door", "glassdoor")}
+      ${tool("window", "window")}
       <span class="group">
-        ${tool("furniture", "▣")}
+        ${tool("furniture", "sofa")}
         <select data-act="ftype" title="${t("type")}">
           ${FURNITURE_TYPES.map((f) => `<option value="${f}" ${f === this.furnitureType ? "selected" : ""}>${t(`f_${f}`)}</option>`).join("")}
         </select>
       </span>
-      ${tool("background", "⧉")}
+      ${tool("background", "image")}
       <span class="group">
         <button data-act="zout" title="−">−</button>
         <button data-act="zin" title="+">+</button>
@@ -772,7 +773,7 @@ export class PlanEditor {
       case "device": {
         const d = obj as DeviceConfig;
         const item = deviceItem(d.model);
-        html = `<div class="ptitle">${item?.icon ?? ""} ${esc(d.name ?? item?.name ?? d.entity)}</div>
+        html = `<div class="ptitle">${item ? icon(item.icon) : ""}${esc(d.name ?? item?.name ?? d.entity)}</div>
           <div class="muted">${esc(d.entity || t("unlinked"))} · ${esc(kindOf(d))}</div>
           <label>${t("link_entity")}<select data-prop="entity">${this.hooks.entityOptions(d)}</select></label>
           <label>${t("model")}<select data-prop="model">${this.hooks.modelOptions(d)}</select></label>
@@ -1100,8 +1101,7 @@ export class PlanEditor {
       g.strokeStyle = bg;
       g.stroke();
       if (item) {
-        g.font = "10px system-ui, sans-serif";
-        g.fillText(item.icon, x, y + 1);
+        drawIcon(g, item.icon, x, y, 11, "#fff");
       }
     }
 

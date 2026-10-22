@@ -7,7 +7,7 @@ A Lovelace card for Home Assistant: your home in 3D, with your lights, air condi
 ![Blueprint3D Card: demo house in 3D](docs/screenshot.png)
 
 - The house is **built from a simple floor plan** (rectangular rooms in metres). No Blender needed.
-- Walls are generated automatically, and the ones facing the camera lower themselves so you can see inside.
+- Walls are generated automatically. The ones between the camera and the house turn see-through (with a thin outline) so you can see inside; the **Walls** button also offers cutaway, low and full walls.
 - Lights that are on **actually light up the room**, with their colour and brightness.
 - The AC blows air, the robot vacuum moves around, the blinds go up and down.
 - The sun follows `sun.sun`: shadows during the day, dim ambience at night.
@@ -46,7 +46,7 @@ The card works best on its own full-screen dashboard:
 
    Both give the same card. Click **Save**, then **Done**.
 
-On an empty config, the card shows a demo apartment. Click **✎ Edit** in the card to draw your plan, then **💾 Save**. Your home is stored in the dashboard config (✏️ → ⋮ → **Raw configuration editor**), not in the JS file, so updating the card never loses it.
+On an empty config, the card shows a demo apartment. Click **Edit** in the card to draw your plan, then **Save**. Your home is stored in the dashboard config (✏️ → ⋮ → **Raw configuration editor**), not in the JS file, so updating the card never loses it.
 
 ## Configuration
 
@@ -62,7 +62,7 @@ wall_height: 2.5     # m
 sun_entity: sun.sun  # day/night lighting
 north: 0             # angle (°) between the top of the plan and north
 compact_labels: false
-max_labels: 3        # labels expanded in the foreground (default: 3 on phones, all on large screens)
+max_labels: 3        # labels expanded in the foreground rooms (default: 3 on phones, all on large screens)
 rooms:               # rectangles in metres, x to the right, y downwards
   - name: Living room
     x: 0
@@ -127,42 +127,44 @@ Without a position source, the robot's movement is **simulated**: it wanders aro
 ## Everyday use
 
 - **Room panel**: click a room's floor to open it. It lists the room's devices, temperature, humidity, detected motion and power use, with "All on" and "All off" buttons. Devices marked "confirmation" are never triggered as a group without approval.
-- **Scenes**: buttons at the bottom of the card run `scene.*` or `script.*`. Pick them with **🎬 Scenes** in edit mode.
+- **Scenes**: buttons at the bottom of the card run `scene.*` or `script.*`. Pick them with **Scenes** in edit mode. Their icon is the entity's `mdi:` icon, or `icon: mdi:…` in the config.
 - **Live doors and windows**: interior doors are open, the others closed. A door leaf follows its contact sensor, either linked in the 2D editor or placed within 80 cm. An **alert** shows when a window is open while the room's AC is running.
-- **Heatmap** (🌡️ button): floors are coloured by temperature, humidity or power use. A legend shows the scale.
+- **Info tiles** (top left): power use, indoor temperature and humidity, lights on, open doors and windows. Clicking the first three switches the heatmap on.
+- **Heatmap** (**Heatmap** button or the tiles): floors are coloured by temperature, humidity or power use. A legend shows the scale.
+- **Labels**: only devices in the rooms closest to the camera show their full label; the others shrink to a round icon (name on hover). Room labels show temperature, humidity and the number of lights on.
 - **Presence**: people (`person.*`) are shown, in colour when they're home. A room glows softly when motion is detected in it.
-- **Energy**: each device's power is shown (e.g. "45 W"). The plug's sensor (Tapo P110, Hue…) is found automatically in the same HA device. The home meter (Linky…) is set in **⚙ Settings**.
+- **Energy**: each device's power is shown (e.g. "45 W"). The plug's sensor (Tapo P110, Hue…) is found automatically in the same HA device. The home meter (Linky…) is set in **Settings**.
 - **Vacuum**: with Xiaomi Cloud Map Extractor (or any entity exposing `vacuum_position` and `charger`), the robot follows its real position and draws its path. The dock is the reference point; rotation and mirroring are set in its panel.
 - **Cameras**: the panel shows the live stream with Home Assistant's player (WebRTC or HLS), otherwise a snapshot refreshed every 3 s.
-- **Floors**: declare them in ⚙ Settings (one name per line), then a selector appears at the top of the card. The 2D editor shows the floor below as dotted lines.
+- **Floors**: declare them in Settings (one name per line), then a selector appears at the top of the card. The 2D editor shows the floor below as dotted lines.
 - **Weather**: rain or snow on the terrace and balcony (wet, shiny floor), and a dimmed sun when it's overcast, based on `weather.*`.
 - **Rendering**: procedural parquet, tiles and decking, contact shadows, lamp glow, natural tone mapping, baseboards, frames, door leaves and glass railings. Furniture has rounded edges and cushions. Quality is set with `quality: auto | high | low`.
 
 ## Editing
 
-Click **✎ Edit**. Two tabs appear at the bottom of the card, along with the 📚 Library, 🎬 Scenes and ⚙ Settings buttons (title, meter, weather, quality, ceiling height, north, floors, people).
+Click **Edit**. Two tabs appear at the bottom of the card, along with the **Undo** arrow (also **Ctrl+Z**, up to 50 steps), **Library**, **Scenes** and **Settings** buttons (title, meter, weather, quality, ceiling height, north, floors, people).
 
-### 💡 Devices (3D view)
+### Devices (3D view)
 
 1. Pick an entity from the list, then click in the house to place it.
 2. Drag a device to move it. Click it to remove it.
-3. The device panel has height presets (Floor / Furniture / Wall / Ceiling), a height slider and a rotation. On a phone, the camera zooms to the device and ◀ ▶ ▼ ▲ buttons nudge it.
+3. The device panel has height presets (Floor / Furniture / Wall / Ceiling), a height slider and a rotation. On a phone, the camera zooms to the device and arrow buttons nudge it.
 
-### 📐 Plan (2D view)
+### Plan (2D view)
 
 | Tool | Usage |
 |---|---|
-| ↖ Select | Click to select, drag to move, handles to resize. Mouse wheel to zoom, drag on empty space to pan. `Del` deletes, arrow keys move by 5 cm (`Shift`: 50 cm). |
-| ▭ Room | Drag to draw a room. Moving a room takes its furniture, devices and doors with it. |
+| Select | Click to select, drag to move, handles to resize. Mouse wheel to zoom, drag on empty space to pan. `Del` deletes, arrow keys move by 5 cm (`Shift`: 50 cm). |
+| Room | Drag to draw a room. Moving a room takes its furniture, devices and doors with it. |
 | Door, French door, window | Click a wall to place the opening, then slide it along the wall or adjust its width with its handles. |
-| ▣ Furniture | Pick the type (sofa, bed, table, desk, chair, wardrobe, kitchen unit, plant, block), then drag to draw it. A single click places it at its default size. |
-| ⧉ Overlay | Load an image of your floor plan (PNG or JPG, or a screenshot of the PDF). Align it with the handles, then trace your rooms over it. |
+| Furniture | Pick the type (sofa, bed, table, desk, chair, wardrobe, kitchen unit, plant, block), then drag to draw it. A single click places it at its default size. |
+| Overlay | Load an image of your floor plan (PNG or JPG, or a screenshot of the PDF). Align it with the handles, then trace your rooms over it. |
 
 The right-hand panel sets each element's properties: name, dimensions to the centimetre, floor colour, outdoor, type, height, etc. It also lets you duplicate, rotate or delete.
 
-### 📚 Object library
+### Object library
 
-The **📚 Library** button (in edit mode, in both tabs) offers about 250 objects, with search, categories and a brand filter:
+The **Library** button (in edit mode, in both tabs) offers about 250 objects, with search, categories and a brand filter:
 
 | Category | Examples |
 |---|---|
@@ -184,14 +186,14 @@ For a sensitive device (garage door, water heater…), tick **Ask for confirmati
 
 ### Saving
 
-- **💾 Save** writes the config directly to the dashboard. This needs a UI-managed dashboard (not YAML mode) and an admin account.
+- **Save** writes the config directly to the dashboard. This needs a UI-managed dashboard (not YAML mode) and an admin account.
 - Otherwise, the card shows the YAML to paste into the card editor.
 
 ### Import and export
 
-- **⤓ Export config** shows the full YAML (plan, furniture, devices, overlay), to copy or **download** as a `.yaml` file. Handy to back up your home or share it.
-- **⤒ Import** accepts YAML or JSON, pasted or loaded from a `.yaml`, `.yml` or `.json` file. It can be the card config alone, or a full dashboard config: the card finds its own config in it.
-- Imported content replaces the plan and devices, but nothing is saved until you click **💾 Save**.
+- **Export** (down-arrow button) shows the full YAML (plan, furniture, devices, overlay), to copy or **download** as a `.yaml` file. Handy to back up your home or share it.
+- **Import** (up-arrow button) accepts YAML or JSON, pasted or loaded from a `.yaml`, `.yml` or `.json` file. It can be the card config alone, or a full dashboard config: the card finds its own config in it.
+- Imported content replaces the plan and devices, but nothing is saved until you click **Save**.
 - **Import safeguards**:
   - 5 MB maximum;
   - no executable YAML tags;
@@ -225,7 +227,7 @@ To publish a version: set the same number in `package.json` and `VERSION` (`src/
 | File | Role |
 |---|---|
 | `src/blueprint3d-card.ts` | The Lovelace element: scene, camera, interactions, edit mode |
-| `src/house.ts` | Builds floors, walls, openings and furniture, and cuts walls according to the camera |
+| `src/house.ts` | Builds floors, walls, openings and furniture, and fades or cuts walls according to the camera |
 | `src/devices.ts` | 3D rendering and animation of each device type |
 | `src/panel.ts` | Control panel |
 | `src/editor.ts` | 2D plan editor (rooms, openings, furniture, overlay) |

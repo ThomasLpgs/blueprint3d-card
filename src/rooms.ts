@@ -16,6 +16,9 @@ export interface RoomStats {
   motion: boolean;
   /** Puissance totale des appareils suivis de la pièce (W). */
   power?: number;
+  /** Lumières allumées / lumières reliées à une entité. */
+  lightsOn: number;
+  lights: number;
 }
 
 export type HeatMode = "off" | "temperature" | "humidity" | "power";
@@ -49,7 +52,7 @@ export function computeRoomStats(
 ): Map<string, RoomStats> {
   const stats = new Map<string, RoomStats>();
   for (const name of house.roomNames) {
-    stats.set(name, { name, area: house.roomArea(name), outdoor: house.isOutdoor(name), devices: [], motion: false });
+    stats.set(name, { name, area: house.roomArea(name), outdoor: house.isOutdoor(name), devices: [], motion: false, lightsOn: 0, lights: 0 });
   }
   const temps = new Map<string, number[]>();
   const hums = new Map<string, number[]>();
@@ -73,6 +76,10 @@ export function computeRoomStats(
     }
     if (typeof e.attributes.current_humidity === "number" && !hums.has(s.name)) hums.set(s.name, [e.attributes.current_humidity]);
     if (isMotion(e) && e.state === "on") s.motion = true;
+    if (view.kind === "light") {
+      s.lights++;
+      if (e.state === "on") s.lightsOn++;
+    }
   }
   for (const s of stats.values()) {
     s.temp = avg(temps.get(s.name) ?? []);

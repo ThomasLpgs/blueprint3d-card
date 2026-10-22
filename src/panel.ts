@@ -2,6 +2,7 @@ import { deviceItem } from "./catalog";
 import { entityName, stateText, isActive } from "./devices";
 import { entityOptions, modelOptions, powerOptions, type PlatformMap } from "./entities";
 import { t } from "./i18n";
+import { icon } from "./icons";
 import { DOMAIN_TO_KIND, kindOf, needsConfirm, type DeviceConfig, type DeviceKind, type HassEntity, type HomeAssistant } from "./types";
 
 // Fiche de contrôle d'un appareil, affichée par-dessus la scène.
@@ -188,7 +189,7 @@ export class DevicePanel {
           <div class="ps">${esc(stateText(kind, e))}</div>
         </div>
         ${toggleable ? `<button class="switch ${isActive(kind, e) ? "on" : ""}" data-act="toggle" title="${t("toggle")}"><span></span></button>` : ""}
-        <button class="icon-btn" data-act="close" title="${t("close")}">✕</button>
+        <button class="icon-btn" data-act="close" title="${t("close")}">${icon("close")}</button>
       </div>
       ${this.opts.editing ? this.nudgeRow(cfg) : ""}
       <div class="panel-body">${
@@ -208,10 +209,10 @@ export class DevicePanel {
     return `<div class="panel-edit nudge-row">
       <div class="row"><label>${t("nudge")}</label>
         <div class="nudge">
-          <button class="round" data-act="nudge" data-dx="-1" title="${t("nudge_left")}">◀</button>
-          <button class="round" data-act="nudge" data-dx="1" title="${t("nudge_right")}">▶</button>
-          ${pl.ceiling ? "" : `<button class="round" data-act="nudge" data-dh="-1" title="${t("nudge_down")}">▼</button>
-          <button class="round" data-act="nudge" data-dh="1" title="${t("nudge_up")}">▲</button>`}
+          <button class="round" data-act="nudge" data-dx="-1" title="${t("nudge_left")}">${icon("left")}</button>
+          <button class="round" data-act="nudge" data-dx="1" title="${t("nudge_right")}">${icon("right")}</button>
+          ${pl.ceiling ? "" : `<button class="round" data-act="nudge" data-dh="-1" title="${t("nudge_down")}">${icon("down")}</button>
+          <button class="round" data-act="nudge" data-dh="1" title="${t("nudge_up")}">${icon("up")}</button>`}
         </div>
       </div>
     </div>`;
@@ -320,18 +321,18 @@ export class DevicePanel {
         const f = typeof a.supported_features === "number" ? a.supported_features : -1;
         const has = (bit: number) => (f & bit) !== 0;
         return `${battery}<div class="chips">
-          ${has(8192) ? `<button class="chip" data-act="svc" data-svc="vacuum.start">▶ ${t("start")}</button>` : ""}
-          ${has(4) ? `<button class="chip" data-act="svc" data-svc="vacuum.pause">❚❚ ${t("pause")}</button>`
-            : has(8) ? `<button class="chip" data-act="svc" data-svc="vacuum.stop">■ ${t("stop")}</button>` : ""}
-          ${has(16) ? `<button class="chip" data-act="svc" data-svc="vacuum.return_to_base">⌂ ${t("dock")}</button>` : ""}
-          ${has(512) ? `<button class="chip" data-act="svc" data-svc="vacuum.locate">◎ ${t("locate")}</button>` : ""}
+          ${has(8192) ? `<button class="chip" data-act="svc" data-svc="vacuum.start">${icon("play")}${t("start")}</button>` : ""}
+          ${has(4) ? `<button class="chip" data-act="svc" data-svc="vacuum.pause">${icon("pause")}${t("pause")}</button>`
+            : has(8) ? `<button class="chip" data-act="svc" data-svc="vacuum.stop">${icon("stop")}${t("stop")}</button>` : ""}
+          ${has(16) ? `<button class="chip" data-act="svc" data-svc="vacuum.return_to_base">${icon("home")}${t("dock")}</button>` : ""}
+          ${has(512) ? `<button class="chip" data-act="svc" data-svc="vacuum.locate">${icon("target")}${t("locate")}</button>` : ""}
         </div>`;
       }
       case "cover": {
         let html = `<div class="chips">
-          <button class="chip" data-act="svc" data-svc="cover.open_cover">▲ ${t("open")}</button>
-          <button class="chip" data-act="svc" data-svc="cover.stop_cover">■ ${t("stop")}</button>
-          <button class="chip" data-act="svc" data-svc="cover.close_cover">▼ ${t("closed")}</button>
+          <button class="chip" data-act="svc" data-svc="cover.open_cover">${icon("up")}${t("open")}</button>
+          <button class="chip" data-act="svc" data-svc="cover.stop_cover">${icon("stop")}${t("stop")}</button>
+          <button class="chip" data-act="svc" data-svc="cover.close_cover">${icon("down")}${t("closed")}</button>
         </div>`;
         if (typeof a.current_position === "number") html += slider("position", t("position"), a.current_position, 0, 100, 1, "%");
         return html;
@@ -342,9 +343,9 @@ export class DevicePanel {
           : "";
       case "media_player": {
         let html = `<div class="chips">
-          <button class="chip" data-act="svc" data-svc="media_player.media_previous_track">⏮</button>
-          <button class="chip" data-act="svc" data-svc="media_player.media_play_pause">⏯</button>
-          <button class="chip" data-act="svc" data-svc="media_player.media_next_track">⏭</button>
+          <button class="chip" data-act="svc" data-svc="media_player.media_previous_track" title="${t("previous")}">${icon("prev")}</button>
+          <button class="chip" data-act="svc" data-svc="media_player.media_play_pause" title="${t("play_pause")}">${icon("playpause")}</button>
+          <button class="chip" data-act="svc" data-svc="media_player.media_next_track" title="${t("next")}">${icon("next")}</button>
         </div>`;
         if (a.media_title) html = `<div class="muted">${esc(a.media_artist ? `${a.media_artist} — ` : "")}${esc(a.media_title)}</div>` + html;
         if (typeof a.volume_level === "number") html += slider("volume", t("volume"), Math.round(a.volume_level * 100), 0, 100, 1, "%");

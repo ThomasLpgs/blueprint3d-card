@@ -140,7 +140,7 @@ export function sanitizeConfig(input: CardConfig): { config: CardConfig; warning
       }
       const out: SceneConfig = { entity: sc.entity };
       if (sc.name !== undefined) out.name = str(sc.name, 40);
-      if (typeof sc.icon === "string") out.icon = [...sc.icon].slice(0, 2).join("");
+      if (typeof sc.icon === "string") out.icon = /^mdi:[a-z0-9-]{1,60}$/.test(sc.icon) ? sc.icon : [...sc.icon].slice(0, 2).join("");
       return [out];
     });
   }

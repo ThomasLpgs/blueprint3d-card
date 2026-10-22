@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import { RoundedBoxGeometry } from "three/examples/jsm/geometries/RoundedBoxGeometry.js";
 import { CSS2DObject } from "three/examples/jsm/renderers/CSS2DRenderer.js";
+import { icon, type IconName } from "./icons";
 import { fabricTexture, floorTexture, guessFloor, repeated, woodGrainTexture } from "./textures";
 import type { FurnitureConfig, OpeningConfig, RoomConfig } from "./types";
 
@@ -14,8 +15,10 @@ const SILL_H = 0.9;
 const WINDOW_TOP = 2.1;
 const FRAME = 0.05;
 const EPS = 0.001;
+/** Opacité des murs estompés (mode « transparents »). */
+const GHOST_OPACITY = 0.16;
 
-export type WallMode = "cutaway" | "low" | "full";
+export type WallMode = "ghost" | "cutaway" | "low" | "full";
 
 /** Hauteur par défaut des meubles « simples » (blocs). */
 const FURNITURE_HEIGHT: Partial<Record<string, number>> = {
@@ -42,6 +45,13 @@ interface WallPiece {
   /** 0 = pleine hauteur, 1 = rabaissé. */
   t: number;
   target: number;
+  /** 0 = opaque, 1 = estompé. */
+  fade: number;
+  fadeTarget: number;
+  /** Matériaux propres au tronçon (pour l'estomper seul), avec leur opacité d'origine. */
+  mats: { mat: THREE.Material; opacity: number; transparent: boolean }[];
+  /** Contours affichés quand le mur est estompé. */
+  edges: THREE.LineBasicMaterial;
 }
 
 interface Line {
@@ -126,6 +136,23 @@ export class House {
 
   roomAt(x: number, y: number): RoomConfig | undefined {
     return [...this.indoor, ...this.rooms].find((r) => x > r.x - EPS && x < r.x + r.w + EPS && y > r.y - EPS && y < r.y + r.d + EPS);
+  }
+
+  /**
+   * Profondeur de chaque pièce vue depuis `origin` selon la direction horizontale `fwd` :
+   * celle de son coin le plus proche (une grande pièce dont le bord est devant compte comme devant).
+   */
+  roomDepths(origin: THREE.Vector3, fwd: THREE.Vector3): Map<string, { depth: number; outdoor: boolean }> {
+    const out = new Map<string, { depth: number; outdoor: boolean }>();
+    for (const r of this.rooms) {
+      let depth = Infinity;
+      for (const [x, z] of [[r.x, r.y], [r.x + r.w, r.y], [r.x, r.y + r.d], [r.x + r.w, r.y + r.d]]) {
+        depth = Math.min(depth, (x - origin.x) * fwd.x + (z - origin.z) * fwd.z);
+      }
+      const prev = out.get(r.name);
+      out.set(r.name, { depth: Math.min(depth, prev?.depth ?? Infinity), outdoor: !!r.outdoor });
+    }
+    return out;
   }
 
   /** Noms des pièces (une pièce en L n'apparaît qu'une fois). */
@@ -223,12 +250,26 @@ export class House {
     }
   }
 
-  /** Texte ajouté sous le nom de la pièce (ex. « 21,5 °C »). */
-  setRoomInfo(name: string, info: string | null): void {
+  /** Infos affichées sous le nom de la pièce (ex. température, humidité, lumières allumées). */
+  setRoomInfo(name: string, info: { icon: IconName; text: string }[]): void {
     const l = this.roomLabels.get(name);
     if (!l) return;
-    l.el.textContent = info ? `${l.name} · ${info}` : l.name;
-    l.el.classList.toggle("with-info", !!info);
+    const rn = document.createElement("span");
+    rn.className = "rn";
+    rn.textContent = l.name;
+    l.el.replaceChildren(rn);
+    if (info.length) {
+      const ri = document.createElement("span");
+      ri.className = "ri";
+      for (const i of info) {
+        const item = document.createElement("span");
+        item.innerHTML = icon(i.icon);
+        item.append(i.text);
+        ri.append(item);
+      }
+      l.el.append(ri);
+    }
+    l.el.classList.toggle("with-info", info.length > 0);
   }
 
   setRoomSelected(name: string | null): void {
@@ -240,13 +281,15 @@ export class House {
   updateCutaway(camera: THREE.Camera, mode: WallMode, dt: number): void {
     const toCam = new THREE.Vector3();
     for (const p of this.pieces) {
-      if (mode === "full") p.target = 0;
-      else if (mode === "low") p.target = 1;
-      else if (!p.exterior) p.target = 0;
-      else {
+      // Mur extérieur tourné vers la caméra : il masque l'intérieur.
+      let facing = false;
+      if (p.exterior && (mode === "cutaway" || mode === "ghost")) {
         toCam.subVectors(camera.position, p.center).setY(0).normalize();
-        p.target = p.normal.dot(toCam) > 0.05 ? 1 : 0;
+        facing = p.normal.dot(toCam) > 0.05;
       }
+      p.target = mode === "low" || (mode === "cutaway" && facing) ? 1 : 0;
+      p.fadeTarget = mode === "ghost" && facing ? 1 : 0;
+      this.updateFade(p, dt);
       if (p.t === p.target) continue;
       const step = dt * 4;
       p.t = p.t < p.target ? Math.min(p.target, p.t + step) : Math.max(p.target, p.t - step);
@@ -261,6 +304,29 @@ export class House {
         }
       }
     }
+  }
+
+  /** Estompe le tronçon au lieu de le rabaisser : il reste lisible (contours) sans masquer la pièce. */
+  private updateFade(p: WallPiece, dt: number): void {
+    if (p.fade === p.fadeTarget) return;
+    const step = dt * 4;
+    p.fade = p.fade < p.fadeTarget ? Math.min(p.fadeTarget, p.fade + step) : Math.max(p.fadeTarget, p.fade - step);
+    const ease = p.fade * p.fade * (3 - 2 * p.fade);
+    const k = 1 - ease * (1 - GHOST_OPACITY);
+    for (const m of p.mats) {
+      // Redevenu opaque : on rend l'état d'origine (tri et ombres normaux).
+      const transparent = m.transparent || p.fade > 0;
+      if (m.mat.transparent !== transparent) {
+        // « transparent » change le shader (define OPAQUE) : recompilation nécessaire.
+        m.mat.transparent = transparent;
+        m.mat.depthWrite = !transparent;
+        m.mat.needsUpdate = true;
+      }
+      m.mat.opacity = m.opacity * k;
+    }
+    p.edges.opacity = 0.6 * ease;
+    p.edges.visible = p.fade > 0;
+    for (const part of p.parts) part.mesh.castShadow = ease < 0.5 && part.mesh.userData.shadow !== false;
   }
 
   /** Anime les battants vers leur position cible. */
@@ -414,7 +480,20 @@ export class House {
         }
 
         for (const c of chunks) {
-          const piece: WallPiece = { parts: [], exterior: c.cls.exterior, normal: c.cls.normal, center: new THREE.Vector3(), t: 0, target: 0 };
+          const edges = new THREE.LineBasicMaterial({ color: 0x5a5148, transparent: true, opacity: 0, depthWrite: false });
+          edges.visible = false;
+          const piece: WallPiece = {
+            parts: [],
+            exterior: c.cls.exterior,
+            normal: c.cls.normal,
+            center: new THREE.Vector3(),
+            t: 0,
+            target: 0,
+            fade: 0,
+            fadeTarget: 0,
+            mats: [],
+            edges,
+          };
           if (!c.opening) {
             // Prolonge de la demi-épaisseur aux bouts du mur pour fermer les angles.
             const ea = Math.abs(c.a - a) < EPS ? WALL_T / 2 : 0;
@@ -427,6 +506,7 @@ export class House {
           }
           const mid = (c.a + c.b) / 2;
           piece.center = line.axis === "h" ? new THREE.Vector3(mid, 1, line.pos) : new THREE.Vector3(line.pos, 1, mid);
+          if (c.cls.exterior) this.ownMaterials(piece);
           this.pieces.push(piece);
         }
       }
@@ -523,6 +603,25 @@ export class House {
     }
     view.apply(view.open);
     this.openings.push(view);
+  }
+
+  /** Copie les matériaux partagés d'un tronçon extérieur, pour pouvoir l'estomper sans toucher aux autres. */
+  private ownMaterials(piece: WallPiece): void {
+    const shared = new Set<THREE.Material>([this.wallMat, this.trimMat, this.frameMat]);
+    const copies = new Map<THREE.Material, THREE.Material>();
+    for (const part of piece.parts) {
+      const m = part.mesh.material as THREE.Material;
+      let own = m;
+      if (shared.has(m)) {
+        own = copies.get(m) ?? m.clone();
+        copies.set(m, own);
+        part.mesh.material = own;
+      }
+      if (!piece.mats.some((x) => x.mat === own)) piece.mats.push({ mat: own, opacity: own.opacity, transparent: own.transparent });
+      part.mesh.userData.shadow = part.mesh.castShadow;
+      // Contours des pans de mur pleins (pas des cadres ni des battants).
+      if (m === this.wallMat) part.mesh.add(new THREE.LineSegments(new THREE.EdgesGeometry(part.mesh.geometry), piece.edges));
+    }
   }
 
   private addPart(piece: WallPiece, line: Line, a: number, b: number, y0: number, h: number, mat: THREE.Material, thickness = WALL_T, shadows = true): void {
@@ -844,7 +943,9 @@ export class House {
           m.dispose();
         });
       }
+      if (o instanceof THREE.LineSegments) o.geometry.dispose();
       if (o instanceof CSS2DObject) o.element.remove();
     });
+    for (const p of this.pieces) p.edges.dispose();
   }
 }

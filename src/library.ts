@@ -1,5 +1,6 @@
 import { CATEGORIES, DEVICE_ITEMS, FURNITURE_ITEMS, SHAPE_KEYWORDS, type CatalogItem, type Category } from "./catalog";
 import { t } from "./i18n";
+import { icon } from "./icons";
 
 // Panneau « Bibliothèque » : objets connectés par marque et meubles, à poser dans la maison.
 
@@ -80,8 +81,8 @@ export class Library {
   private render(): void {
     this.el.innerHTML = `
       <div class="lib-head">
-        <strong>📚 ${t("library")}</strong>
-        <button class="icon-btn" data-act="close" title="${t("close")}">✕</button>
+        <strong class="with-ic">${icon("book")}${t("library")}</strong>
+        <button class="icon-btn" data-act="close" title="${t("close")}">${icon("close")}</button>
       </div>
       <input type="search" placeholder="${t("search")}" value="${this.query.replace(/"/g, "&quot;")}">
       <div class="lib-chips lib-cats"></div>
@@ -127,7 +128,7 @@ export class Library {
       ? items
           .map(
             (i) => `<button class="lib-item" data-id="${i.id}" title="${esc(itemName(i))}">
-              <span class="ico">${i.icon}</span>
+              <span class="ico">${icon(i.icon)}</span>
               <span class="nm">${esc(itemName(i))}</span>
               <span class="br">${esc(i.category === "furniture" ? t("cat_furniture") : i.brand)}</span>
             </button>`,

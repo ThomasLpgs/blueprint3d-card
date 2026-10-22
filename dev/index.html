@@ -57,7 +57,7 @@
       ];
       // La baie vitrée du séjour est reliée à son capteur d'ouverture.
       const MAISON_OPENINGS = MAISON.openings.map((o) => (o.type === "glass_door" ? { ...o, sensor: "binary_sensor.baie_terrasse" } : o));
-      const MAISON_SCENES = [{ entity: "scene.soiree", icon: "🛋️" }, { entity: "scene.cinema", icon: "🎬" }, { entity: "script.tout_eteindre", icon: "🌙" }];
+      const MAISON_SCENES = [{ entity: "scene.soiree" }, { entity: "scene.cinema" }, { entity: "script.tout_eteindre" }];
       const params = new URLSearchParams(location.search);
       const card = document.querySelector("blueprint3d-card");
       const initial =

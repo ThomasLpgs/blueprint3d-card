@@ -4,6 +4,7 @@ import { DEFAULT_SHAPE, deviceItem, type DeviceItem, type Shape } from "./catalo
 import { fmtWatts } from "./entities";
 import { House, WALL_T } from "./house";
 import { t } from "./i18n";
+import { icon, type IconName } from "./icons";
 import { DEFAULT_HEIGHT, kindOf, type DeviceConfig, type DeviceKind, type HassEntity } from "./types";
 
 // Représentation 3D de chaque type d'appareil, mise à jour à partir de l'état HA.
@@ -81,6 +82,31 @@ export function isActive(kind: DeviceKind, entity: HassEntity | undefined): bool
   }
 }
 
+const KIND_ICON: Record<DeviceKind, IconName> = {
+  light: "bulb",
+  climate: "climate",
+  vacuum: "vacuum",
+  cover: "cover",
+  fan: "fan",
+  switch: "plug",
+  media_player: "tv",
+  camera: "camera",
+  sensor: "gauge",
+};
+
+/** Icône de la pastille : celle du type, précisée pour les capteurs (classe de l'entité). */
+function labelIcon(kind: DeviceKind, shape: string, entity: HassEntity | undefined): IconName {
+  if (kind !== "sensor") return KIND_ICON[kind];
+  const dc = entity?.attributes.device_class;
+  if (entity?.entity_id.startsWith("lock.")) return "lock";
+  if (dc === "temperature") return "thermometer";
+  if (dc === "humidity") return "droplet";
+  if (dc === "motion" || dc === "occupancy" || dc === "presence") return "walk";
+  if (shape === "contact" || dc === "door" || dc === "window" || dc === "opening" || dc === "garage_door") return "door";
+  if (dc === "power" || dc === "energy") return "bolt";
+  return "gauge";
+}
+
 export function stateText(kind: DeviceKind, entity: HassEntity | undefined): string {
   if (!entity) return t("missing");
   if (UNAVAILABLE.has(entity.state)) return t("unavailable");
@@ -130,6 +156,8 @@ export abstract class DeviceView {
   readonly label: CSS2DObject;
   readonly labelEl: HTMLElement;
   private nameEl: HTMLElement;
+  private dotEl: HTMLElement;
+  private iconName?: IconName;
   private stateEl: HTMLElement;
   protected entity?: HassEntity;
   protected height: number;
@@ -151,6 +179,7 @@ export abstract class DeviceView {
     anchor.appendChild(el);
     this.labelEl = el;
     this.nameEl = el.querySelector(".n")!;
+    this.dotEl = el.querySelector(".dot")!;
     this.stateEl = el.querySelector(".s")!;
     this.label = new CSS2DObject(anchor);
     this.group.add(this.label);
@@ -174,6 +203,11 @@ export abstract class DeviceView {
     this.stateEl.textContent = unlinked ? (this.item?.decorative ? this.item.brand : t("unlinked")) : stateText(this.kind, entity);
     const power = unlinked ? undefined : this.ctx.powerOf?.(this.cfg);
     if (power !== undefined && power > 0.5) this.stateEl.textContent += ` · ${fmtWatts(power)}`;
+    const ico = labelIcon(this.kind, this.shape, entity);
+    if (ico !== this.iconName) {
+      this.iconName = ico;
+      this.dotEl.innerHTML = icon(ico);
+    }
     const el = this.labelEl;
     el.classList.toggle("unlinked", unlinked && !this.item?.decorative);
     el.classList.toggle("on", isActive(this.kind, entity));

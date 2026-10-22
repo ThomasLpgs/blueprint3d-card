@@ -5,6 +5,7 @@ import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment
 import { DEMO_PLAN, demoDevices } from "./demo";
 import { CEILING_SHAPES, createDeviceView, makeHaloTexture, type DeviceContext, type DeviceView } from "./devices";
 import { House, type WallMode } from "./house";
+import { icon, sceneIcon, type IconName } from "./icons";
 import { PostFX, resolveQuality } from "./post";
 import { readWeather, WeatherFX } from "./weather";
 import { setLanguage, t } from "./i18n";
@@ -14,9 +15,9 @@ import { entityOptions, findPowerEntity, fmtWatts, isPowerSensor, loadRegistry, 
 import { itemName, Library } from "./library";
 import { DevicePanel } from "./panel";
 import { RoomPanel } from "./roompanel";
-import { computeRoomStats, fmt1, heatColor, heatGradient, type HeatMode, type RoomStats } from "./rooms";
+import { computeRoomStats, fmt1, heatColor, heatGradient, roomOfView, type HeatMode, type RoomStats } from "./rooms";
 import { styles } from "./styles";
-import { DOMAIN_TO_KIND, kindOf, needsConfirm, type FurnitureType, type CardConfig, type DeviceConfig, type HassEntity, type HomeAssistant } from "./types";
+import { DOMAIN_TO_KIND, kindOf, needsConfirm, type FurnitureType, type BackgroundConfig, type CardConfig, type DeviceConfig, type HassEntity, type HomeAssistant } from "./types";
 import { MAX_IMPORT_BYTES, parseImport } from "./importer";
 import { sanitizeConfig } from "./validate";
 import { toYaml } from "./yaml";
@@ -24,12 +25,19 @@ import { toYaml } from "./yaml";
 const esc = (s: unknown) =>
   String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
 
-const VERSION = "0.1.0";
-const WALL_MODES: WallMode[] = ["cutaway", "low", "full"];
+const VERSION = "0.2.0";
+const WALL_MODES: WallMode[] = ["ghost", "cutaway", "low", "full"];
 const CLICK_SLOP = 6;
 const LONG_PRESS_MS = 550;
 const snap = (v: number) => Math.round(v * 20) / 20;
 const clone = <T>(v: T): T => JSON.parse(JSON.stringify(v));
+const UNDO_LIMIT = 50;
+
+/** État du plan et des appareils, pour l'annulation. L'image de fond est gardée par référence (pas de copie). */
+interface Snapshot {
+  data: string;
+  background?: BackgroundConfig;
+}
 
 /** JSON avec clés triées, pour retrouver notre carte dans la config du tableau de bord. */
 function stableStringify(v: unknown): string {
@@ -89,12 +97,22 @@ class Blueprint3DCard extends HTMLElement {
   private raycaster = new THREE.Raycaster();
 
   // État
-  private wallMode: WallMode = "cutaway";
+  private wallMode: WallMode = "ghost";
   private editing = false;
   private editTab: "devices" | "plan" = "devices";
   private editor?: PlanEditor;
   private dirty = false;
   private planDirty = false;
+  /** Annulation (Ctrl+Z) : états précédents du plan et des appareils, le dernier en haut. */
+  private undoStack: Snapshot[] = [];
+  private lastSnapshot?: Snapshot;
+  private readonly onUndoKey = (e: KeyboardEvent) => {
+    if (!this.editing || e.key.toLowerCase() !== "z" || !(e.ctrlKey || e.metaKey) || e.shiftKey || e.altKey) return;
+    const target = e.composedPath()[0] as HTMLElement | undefined;
+    if (target?.matches?.("input, textarea, select, [contenteditable]")) return;
+    e.preventDefault();
+    this.undo();
+  };
   private saveState: "idle" | "saving" | "saved" = "idle";
   private placingEntity?: string;
   /** Objet de la bibliothèque en attente de placement (clic dans la maison). */
@@ -198,6 +216,7 @@ class Blueprint3DCard extends HTMLElement {
 
   disconnectedCallback(): void {
     this.connected = false;
+    window.removeEventListener("keydown", this.onUndoKey);
     this.updateLoop();
     // HA détache/rattache souvent les cartes : on attend un peu avant de tout libérer.
     clearTimeout(this.disposeTimer);
@@ -259,7 +278,7 @@ class Blueprint3DCard extends HTMLElement {
           <div class="overlay-left">
             <div class="notice" hidden></div>
             <div class="persons"></div>
-            <div class="meter" hidden></div>
+            <div class="stats"></div>
             <div class="alert" hidden></div>
           </div>
           <div class="scenes"></div>
@@ -273,6 +292,7 @@ class Blueprint3DCard extends HTMLElement {
           </div>
           <div class="editbar" hidden>
             <span class="tabs"><button data-tab="devices"></button><button data-tab="plan"></button></span>
+            <button data-act="undo" class="undo"></button>
             <button data-act="library" class="primary"></button>
             <button data-act="scenes"></button>
             <button data-act="settings"></button>
@@ -367,6 +387,13 @@ class Blueprint3DCard extends HTMLElement {
       const btn = (e.target as HTMLElement).closest<HTMLElement>("[data-level]");
       if (btn) this.setLevel(Number(btn.dataset.level));
     });
+    root.querySelector(".stats")!.addEventListener("click", (e) => {
+      const mode = (e.target as HTMLElement).closest<HTMLElement>("[data-heat]")?.dataset.heat as HeatMode | undefined;
+      if (!mode) return;
+      this.heatMode = this.heatMode === mode ? "off" : mode;
+      this.refreshLive();
+      this.refreshUi();
+    });
     root.querySelector(".scenes")!.addEventListener("click", (e) => {
       const btn = (e.target as HTMLElement).closest<HTMLElement>("[data-scene]");
       if (btn) this.runScene(btn.dataset.scene!, btn);
@@ -398,6 +425,7 @@ class Blueprint3DCard extends HTMLElement {
     this.editbar.querySelector('[data-act="export"]')!.addEventListener("click", () => this.showExport());
     this.editbar.querySelector('[data-act="import"]')!.addEventListener("click", () => this.showImport());
     this.editbar.querySelector('[data-act="save"]')!.addEventListener("click", () => this.save());
+    this.editbar.querySelector('[data-act="undo"]')!.addEventListener("click", () => this.undo());
     this.editbar.querySelector('[data-act="library"]')!.addEventListener("click", () => this.library.toggle());
     this.editbar.querySelector('[data-act="scenes"]')!.addEventListener("click", () => this.showScenesEditor());
     this.editbar.querySelector('[data-act="settings"]')!.addEventListener("click", () => this.showSettings());
@@ -423,51 +451,59 @@ class Blueprint3DCard extends HTMLElement {
     title.textContent = this.config.title ?? "";
     this.stage.style.setProperty("--h3d-height", `${Number(this.config.height) || 450}px`);
     this.stage.classList.toggle("hide-labels", !!this.config.compact_labels);
-    this.wallBtn.textContent = t(`walls_${this.wallMode}`);
+    const label = (el: HTMLElement, name: IconName, text: string) => {
+      el.innerHTML = `${icon(name)}<span class="lbl">${esc(text)}</span>`;
+      el.title = text;
+    };
+    label(this.wallBtn, "cube", t(`walls_${this.wallMode}`));
     const heatBtn = root.querySelector<HTMLElement>('[data-act="heat"]')!;
-    heatBtn.textContent =
-      this.heatMode === "temperature"
-        ? `🌡️ ${t("heat_temperature")}`
-        : this.heatMode === "humidity"
-          ? `💧 ${t("heat_humidity")}`
-          : this.heatMode === "power"
-            ? `⚡ ${t("heat_power")}`
-            : `🌡️ ${t("heat_off")}`;
+    if (this.heatMode === "temperature") label(heatBtn, "thermometer", t("heat_temperature"));
+    else if (this.heatMode === "humidity") label(heatBtn, "droplet", t("heat_humidity"));
+    else if (this.heatMode === "power") label(heatBtn, "bolt", t("heat_power"));
+    else label(heatBtn, "layers", t("heat_off"));
     heatBtn.classList.toggle("active", this.heatMode !== "off");
-    this.editbar.querySelector<HTMLElement>('[data-act="scenes"]')!.textContent = `🎬 ${t("scenes")}`;
-    this.editbar.querySelector<HTMLElement>('[data-act="settings"]')!.textContent = `⚙ ${t("settings")}`;
+    label(this.editbar.querySelector<HTMLElement>('[data-act="scenes"]')!, "sparkles", t("scenes"));
+    label(this.editbar.querySelector<HTMLElement>('[data-act="settings"]')!, "sliders", t("settings"));
     this.renderLevels();
     this.renderScenes();
-    this.editBtn.textContent = this.editing ? `✓ ${t("done")}` : `✎ ${t("edit")}`;
+    label(this.editBtn, this.editing ? "check" : "pencil", this.editing ? t("done") : t("edit"));
     this.editBtn.classList.toggle("active", this.editing);
-    root.querySelector<HTMLElement>('[data-act="recenter"]')!.textContent = `⟲ ${t("recenter")}`;
+    label(root.querySelector<HTMLElement>('[data-act="recenter"]')!, "target", t("recenter"));
     this.editbar.hidden = !this.editing;
     const inPlan = this.editing && this.editTab === "plan";
     this.wallBtn.hidden = inPlan;
     root.querySelector<HTMLElement>('[data-act="recenter"]')!.hidden = inPlan;
     for (const b of this.editbar.querySelectorAll<HTMLElement>("[data-tab]")) {
       b.classList.toggle("active", b.dataset.tab === this.editTab);
-      b.textContent = b.dataset.tab === "plan" ? `📐 ${t("tab_plan")}` : `💡 ${t("tab_devices")}`;
+      if (b.dataset.tab === "plan") label(b, "plan", t("tab_plan"));
+      else label(b, "bulb", t("tab_devices"));
     }
     this.editbar.querySelector<HTMLElement>("select")!.hidden = inPlan;
     const hint = this.editbar.querySelector<HTMLElement>(".hint")!;
     // L'aide ne s'affiche que pendant un placement ; sinon elle reste en info-bulle.
     const placing = !inPlan && (this.placingEntity || this.placingItem);
     hint.hidden = !placing;
-    hint.textContent = `${t("place_hint")}${this.placingItem ? ` : ${this.placingItem.icon} ${itemName(this.placingItem)}` : ""}`;
+    hint.textContent = `${t("place_hint")}${this.placingItem ? ` : ${itemName(this.placingItem)}` : ""}`;
     const cancel = this.editbar.querySelector<HTMLElement>('[data-act="cancel"]')!;
     cancel.hidden = !placing;
-    cancel.textContent = `✕ ${t("cancel")}`;
-    this.editbar.querySelector<HTMLElement>('[data-act="library"]')!.textContent = `📚 ${t("library")}`;
+    label(cancel, "close", t("cancel"));
+    const undoBtn = this.editbar.querySelector<HTMLButtonElement>('[data-act="undo"]')!;
+    undoBtn.innerHTML = icon("undo");
+    undoBtn.title = t("undo");
+    undoBtn.setAttribute("aria-label", t("undo"));
+    undoBtn.disabled = !this.undoStack.length;
+    label(this.editbar.querySelector<HTMLElement>('[data-act="library"]')!, "book", t("library"));
     this.editbar.querySelector<HTMLElement>("select")!.title = t("drag_hint");
     const status = this.editbar.querySelector<HTMLElement>(".status")!;
-    status.textContent =
-      this.saveState === "saving" ? t("saving") : this.dirty ? `● ${t("unsaved")}` : this.saveState === "saved" ? `✓ ${t("saved")}` : "";
+    status.innerHTML =
+      this.saveState === "saving" ? esc(t("saving")) : this.dirty ? esc(t("unsaved")) : this.saveState === "saved" ? `${icon("check")}${esc(t("saved"))}` : "";
     status.classList.toggle("dirty", this.dirty);
-    this.editbar.querySelector<HTMLElement>('[data-act="export"]')!.textContent = `⤓ ${t("export")}`;
-    this.editbar.querySelector<HTMLElement>('[data-act="import"]')!.textContent = `⤒ ${t("import")}`;
-    this.editbar.querySelector<HTMLElement>('[data-act="save"]')!.textContent = `💾 ${t("save")}`;
+    label(this.editbar.querySelector<HTMLElement>('[data-act="export"]')!, "download", t("export"));
+    label(this.editbar.querySelector<HTMLElement>('[data-act="import"]')!, "upload", t("import"));
+    label(this.editbar.querySelector<HTMLElement>('[data-act="save"]')!, "save", t("save"));
     this.stage.classList.toggle("placing", !!(this.placingEntity || this.placingItem));
+    // La bibliothèque s'arrête au-dessus de la barre d'édition, même sur deux lignes.
+    if (this.editing) this.stage.style.setProperty("--h3d-editbar", `${this.editbar.offsetHeight}px`);
     const notice = root.querySelector<HTMLElement>(".notice")!;
     notice.hidden = !this.plan.usingDemo;
     notice.textContent = t("demo_notice");
@@ -756,19 +792,25 @@ class Blueprint3DCard extends HTMLElement {
     const kept: Box[] = [];
     const hits = (a: Box, pad: number) => kept.some((k) => a.l - pad < k.r && a.r + pad > k.l && a.t - pad < k.b && a.b + pad > k.t);
     const camPos = this.camera.position;
+    const front = this.frontRooms();
     const items = this.views
       .filter((v) => v.label.element.style.display !== "none")
       .map((v) => {
         const el = v.labelEl;
-        const rank = el.classList.contains("selected") ? 0 : 1;
-        return { v, el, rank, dist: v.group.position.distanceToSquared(camPos) };
+        const room = this.house ? roomOfView(this.house, v) : undefined;
+        // Toujours dépliées : l'appareil sélectionné et ceux de la pièce dont le panneau est ouvert.
+        const rank = el.classList.contains("selected") || (room && room === this.roomPanel.openFor) ? 0 : 1;
+        return { v, el, rank, inFront: !front || !room || front.has(room), dist: v.group.position.distanceToSquared(camPos) };
       })
       .sort((a, b) => a.rank - b.rank || a.dist - b.dist);
     // Seules les étiquettes au premier plan restent dépliées (3 sur téléphone par défaut) ;
     // les autres deviennent des pastilles, à toucher pour ouvrir la fiche.
-    const limit = Math.round(this.config.max_labels ?? (this.stage.classList.contains("narrow") ? 3 : Infinity));
+    const narrow = this.stage.classList.contains("narrow");
+    const limit = Math.round(this.config.max_labels ?? (narrow ? 3 : Infinity));
+    // Demi-largeur d'une pastille réduite (icône 22 px, 18 px sur téléphone, + bordure).
+    const half = narrow ? 12 : 14;
     let open = 0;
-    for (const { v, el, rank } of items) {
+    for (const { v, el, rank, inFront } of items) {
       const a = v.label.element.getBoundingClientRect();
       const cx = (a.left + a.right) / 2;
       const by = a.bottom - 6;
@@ -776,9 +818,9 @@ class Blueprint3DCard extends HTMLElement {
       if (!mini && !el.classList.contains("culled")) this.labelSize.set(el, [el.offsetWidth, el.offsetHeight]);
       const [w, h] = this.labelSize.get(el) ?? [90, 30];
       const full = { l: cx - w / 2, r: cx + w / 2, t: by - h, b: by };
-      const dot = { l: cx - 10, r: cx + 10, t: by - 20, b: by };
+      const dot = { l: cx - half, r: cx + half, t: by - 2 * half, b: by };
       // Marge en plus pour redéplier une pastille : évite le clignotement à la limite.
-      const room = rank === 0 || open < limit;
+      const room = rank === 0 || (open < limit && inFront);
       const mode = room && !hits(full, mini ? 6 : 0) ? "full" : !hits(dot, 0) ? "mini" : "culled";
       if (mode === "full" && rank !== 0) open++;
       if (mode !== "culled") kept.push(mode === "full" ? full : dot);
@@ -794,6 +836,25 @@ class Blueprint3DCard extends HTMLElement {
       el.classList.toggle("culled", hidden);
       if (!hidden) kept.push(box);
     }
+  }
+
+  /**
+   * Pièces au premier plan (la rangée la plus proche de la caméra) : seules leurs étiquettes restent
+   * dépliées, celles des pièces derrière deviennent des pastilles. undefined = toutes (vue de dessus).
+   */
+  private frontRooms(): Set<string> | undefined {
+    if (!this.house) return undefined;
+    const fwd = this.camera.getWorldDirection(new THREE.Vector3()).setY(0);
+    // Caméra presque à la verticale : aucune pièce n'en cache une autre.
+    if (fwd.length() < 0.35) return undefined;
+    fwd.normalize();
+    const depths = [...this.house.roomDepths(this.camera.position, fwd)];
+    // Référence : les pièces fermées (une terrasse devant ne doit pas repousser tout l'intérieur derrière).
+    const indoor = depths.filter(([, r]) => !r.outdoor);
+    const values = (indoor.length ? indoor : depths).map(([, r]) => r.depth);
+    const min = Math.min(...values);
+    const band = Math.max(2.5, 0.35 * (Math.max(...values) - min));
+    return new Set(depths.filter(([, r]) => r.depth <= min + band).map(([name]) => name));
   }
 
   private tickCamera(dt: number): void {
@@ -959,10 +1020,10 @@ class Blueprint3DCard extends HTMLElement {
     if (d.timer) clearTimeout(d.timer);
     if (d.consumed) return;
     if (d.dragged && d.view) {
-      this.markDirty();
       // Reconstruit pour réaccrocher au mur le plus proche.
       const view = this.rebuildView(d.view);
       this.select(view);
+      this.markDirty();
       return;
     }
     if (Math.hypot(e.clientX - d.x, e.clientY - d.y) > CLICK_SLOP) return;
@@ -1120,7 +1181,10 @@ class Blueprint3DCard extends HTMLElement {
     el.innerHTML = scenes
       .map((s) => {
         const name = s.name ?? this._hass?.states[s.entity]?.attributes.friendly_name ?? s.entity;
-        return `<button class="scene" data-scene="${esc(s.entity)}">${s.icon ? `<span>${esc(s.icon)}</span>` : "🎬"} ${esc(name)}</button>`;
+        // Icône mdi:… choisie, sinon celle de l'entité dans HA, sinon devinée d'après le nom (pas d'emoji).
+        const mdi = [s.icon, this._hass?.states[s.entity]?.attributes.icon].find((i) => typeof i === "string" && /^mdi:[a-z0-9-]+$/.test(i));
+        const ic = mdi ? `<ha-icon icon="${esc(mdi)}"></ha-icon>` : icon(sceneIcon(String(name)));
+        return `<button class="scene" data-scene="${esc(s.entity)}">${ic}${esc(name)}</button>`;
       })
       .join("");
   }
@@ -1134,14 +1198,12 @@ class Blueprint3DCard extends HTMLElement {
     // Étiquettes de pièces (température) et carte de chaleur
     const legend = this.shadowRoot.querySelector<HTMLElement>(".legend")!;
     for (const s of this.roomStats.values()) {
-      const info = [
-        s.temp !== undefined ? `${fmt1(s.temp)}°` : "",
-        this.heatMode === "humidity" && s.hum !== undefined ? `${fmt1(s.hum)} %` : "",
-        this.heatMode === "power" && s.power !== undefined ? fmtWatts(s.power) : "",
-      ]
-        .filter(Boolean)
-        .join(" · ");
-      this.house.setRoomInfo(s.name, info || null);
+      const info: { icon: IconName; text: string }[] = [];
+      if (s.temp !== undefined) info.push({ icon: "thermometer", text: `${fmt1(s.temp)}°` });
+      if (s.hum !== undefined) info.push({ icon: "droplet", text: `${fmt1(s.hum)} %` });
+      if (this.heatMode === "power" && s.power !== undefined) info.push({ icon: "bolt", text: fmtWatts(s.power) });
+      if (s.lightsOn) info.push({ icon: "bulb", text: String(s.lightsOn) });
+      this.house.setRoomInfo(s.name, info);
       if (this.heatMode === "off") this.house.setRoomTint(s.name, null);
       else {
         const v = this.heatMode === "temperature" ? s.temp : this.heatMode === "power" ? s.power : s.hum;
@@ -1164,19 +1226,23 @@ class Blueprint3DCard extends HTMLElement {
         .filter((n): n is string => !!n),
     );
     const alerts = new Set<string>();
+    let sensored = 0;
+    let opened = 0;
     for (const o of this.house.openings) {
       const sensor =
         o.cfg.sensor ?? contacts.find((v) => Math.hypot(v.cfg.position[0] - o.cfg.x, v.cfg.position[1] - o.cfg.y) < 0.8)?.cfg.entity;
       const st = sensor ? hass?.states[sensor] : undefined;
       if (st) o.target = st.state === "on" ? 1 : 0;
       const isOpen = st?.state === "on";
+      if (st) sensored++;
+      if (isOpen) opened++;
       const alert = isOpen && o.rooms.some((r) => climateRooms.has(r));
       o.setAlert(!!alert);
       if (alert) o.rooms.filter((r) => climateRooms.has(r)).forEach((r) => alerts.add(r));
     }
     const alertEl = this.shadowRoot.querySelector<HTMLElement>(".alert")!;
     alertEl.hidden = !alerts.size;
-    alertEl.textContent = alerts.size ? `⚠️ ${[...alerts].join(", ")} : ${t("alert_open_ac")}` : "";
+    alertEl.innerHTML = alerts.size ? `${icon("alert")}<span>${esc([...alerts].join(", "))} : ${esc(t("alert_open_ac"))}</span>` : "";
 
     // Météo sur les extérieurs
     const weatherId = this.config.weather_entity ?? Object.keys(hass?.states ?? {}).find((id) => id.startsWith("weather."));
@@ -1188,14 +1254,46 @@ class Blueprint3DCard extends HTMLElement {
       this.updateLighting();
     }
 
-    // Consommation : compteur du logement, sinon total des appareils suivis.
-    const meterEl = this.shadowRoot.querySelector<HTMLElement>(".meter")!;
+    // Tuiles d'infos : consommation (compteur du logement, sinon total des appareils suivis),
+    // moyennes intérieures, lumières, ouvertures. Les trois premières activent la carte de chaleur.
+    const all = [...this.roomStats.values()];
     const meter = this.config.power_entity ? watts(hass?.states[this.config.power_entity]) : undefined;
-    const tracked = [...this.roomStats.values()].reduce((sum, s) => sum + (s.power ?? 0), 0);
-    const anyTracked = [...this.roomStats.values()].some((s) => s.power !== undefined);
-    meterEl.hidden = meter === undefined && !anyTracked;
-    meterEl.textContent = meter !== undefined ? `⚡ ${fmtWatts(meter)}` : `⚡ ${fmtWatts(tracked)} ${t("tracked")}`;
-    meterEl.title = meter !== undefined && anyTracked ? `${t("tracked_devices")} : ${fmtWatts(tracked)}` : "";
+    const tracked = all.reduce((sum, s) => sum + (s.power ?? 0), 0);
+    const anyTracked = all.some((s) => s.power !== undefined);
+    const mean = (l: (number | undefined)[]) => {
+      const v = l.filter((x): x is number => x !== undefined);
+      return v.length ? v.reduce((a, b) => a + b, 0) / v.length : undefined;
+    };
+    const indoor = all.filter((s) => !s.outdoor);
+    const temp = mean(indoor.map((s) => s.temp));
+    const hum = mean(indoor.map((s) => s.hum));
+    const lights = all.reduce((n, s) => n + s.lights, 0);
+    const lightsOn = all.reduce((n, s) => n + s.lightsOn, 0);
+    type Tile = { icon: IconName; label: string; value: string; heat?: HeatMode; cls?: string; title?: string };
+    const tiles: Tile[] = [];
+    if (meter !== undefined || anyTracked) {
+      tiles.push({
+        icon: "bolt",
+        label: t(meter !== undefined ? "stat_power" : "stat_power_tracked"),
+        value: fmtWatts(meter ?? tracked),
+        heat: "power",
+        cls: "meter",
+        title: meter !== undefined && anyTracked ? `${t("tracked_devices")} : ${fmtWatts(tracked)}` : "",
+      });
+    }
+    if (temp !== undefined) tiles.push({ icon: "thermometer", label: t("stat_temp"), value: `${fmt1(temp)}°`, heat: "temperature" });
+    if (hum !== undefined) tiles.push({ icon: "droplet", label: t("stat_hum"), value: `${fmt1(hum)} %`, heat: "humidity" });
+    if (lights) tiles.push({ icon: "bulb", label: t("stat_lights"), value: `${lightsOn} / ${lights}`, cls: lightsOn ? "lit" : "" });
+    if (sensored) tiles.push({ icon: "door", label: t("stat_open"), value: `${opened} / ${sensored}`, cls: opened ? "warn" : "" });
+    const statsEl = this.shadowRoot.querySelector<HTMLElement>(".stats")!;
+    statsEl.hidden = !tiles.length;
+    statsEl.innerHTML = tiles
+      .map((s) => {
+        const tag = s.heat ? "button" : "div";
+        const cls = ["stat", `s-${s.icon}`, s.cls ?? "", s.heat && s.heat === this.heatMode ? "active" : ""].filter(Boolean).join(" ");
+        return `<${tag} class="${cls}"${s.heat ? ` data-heat="${s.heat}"` : ""} title="${esc(s.title || s.label)}">${icon(s.icon)}<span class="st"><small>${esc(s.label)}</small><b>${esc(s.value)}</b></span></${tag}>`;
+      })
+      .join("");
 
     // Personnes à la maison
     const personsEl = this.shadowRoot.querySelector<HTMLElement>(".persons")!;
@@ -1243,7 +1341,7 @@ class Blueprint3DCard extends HTMLElement {
         .map((s) => `<option value="${esc(s.entity_id)}" ${s.entity_id === current ? "selected" : ""}>${esc(name(s))} · ${esc(s.entity_id)}</option>`)
         .join("");
     const modal = this.modal(`
-      <strong>⚙ ${t("settings")}</strong>
+      <strong class="with-ic">${icon("sliders")}${t("settings")}</strong>
       <div class="settings-grid">
         <label>${t("title_label")}<input type="text" data-k="title" maxlength="60" value="${esc(c.title ?? "")}"></label>
         <label>${t("power_entity_label")}<select data-k="power_entity">${options(states.filter(isPowerSensor), c.power_entity, t("none"))}</select></label>
@@ -1311,7 +1409,7 @@ class Blueprint3DCard extends HTMLElement {
       .sort((a, b) => String(a.attributes.friendly_name ?? a.entity_id).localeCompare(String(b.attributes.friendly_name ?? b.entity_id)));
     const chosen = new Set((this.config.scenes ?? []).map((s) => s.entity));
     const modal = this.modal(`
-      <strong>🎬 ${t("scenes")}</strong>
+      <strong class="with-ic">${icon("sparkles")}${t("scenes")}</strong>
       <span class="muted">${t("scenes_hint")}</span>
       <div class="scene-list">${
         all.length
@@ -1340,6 +1438,7 @@ class Blueprint3DCard extends HTMLElement {
 
   private setEditing(on: boolean): void {
     if (!on && this.editTab === "plan") this.setTab("devices");
+    if (!on) window.removeEventListener("keydown", this.onUndoKey);
     this.editing = on;
     this.placingEntity = undefined;
     this.placingItem = undefined;
@@ -1349,6 +1448,9 @@ class Blueprint3DCard extends HTMLElement {
     if (on) {
 
       this.ensurePlanArrays();
+      this.undoStack = [];
+      this.lastSnapshot = this.snapshot();
+      window.addEventListener("keydown", this.onUndoKey);
       this.fillEntityPicker();
       // On se détache de la config d'origine : les modifs vivent ici jusqu'à l'enregistrement.
       this.usingDemoDevices = false;
@@ -1433,10 +1535,52 @@ class Blueprint3DCard extends HTMLElement {
     };
   }
 
-  private markDirty(): void {
+  /** `record` : la modification est terminée et peut être annulée (pas pendant un glissement de curseur). */
+  private markDirty(record = true): void {
+    if (record) this.recordHistory();
     this.dirty = true;
     this.saveState = "idle";
     this.refreshUi();
+  }
+
+  private snapshot(): Snapshot {
+    const c = this.config;
+    return { data: JSON.stringify([c.rooms ?? [], c.openings ?? [], c.furniture ?? [], this.devices]), background: c.background ? { ...c.background } : undefined };
+  }
+
+  private recordHistory(): void {
+    if (!this.editing) return;
+    const now = this.snapshot();
+    const prev = this.lastSnapshot;
+    const same = prev && prev.data === now.data && JSON.stringify(prev.background) === JSON.stringify(now.background);
+    if (prev && !same) {
+      this.undoStack.push(prev);
+      if (this.undoStack.length > UNDO_LIMIT) this.undoStack.shift();
+    }
+    this.lastSnapshot = now;
+  }
+
+  /** Revient à l'état d'avant la dernière modification (déplacement, ajout, suppression, plan…). */
+  private undo(): void {
+    const prev = this.undoStack.pop();
+    if (!prev || !this.editing) return;
+    const [rooms, openings, furniture, devices] = JSON.parse(prev.data) as [CardConfig["rooms"], CardConfig["openings"], CardConfig["furniture"], DeviceConfig[]];
+    const c = this.config;
+    c.rooms = rooms;
+    c.openings = openings;
+    c.furniture = furniture;
+    if (prev.background) c.background = { ...prev.background };
+    else delete c.background;
+    this.devices = devices;
+    this.lastSnapshot = prev;
+    this.placingEntity = undefined;
+    this.placingItem = undefined;
+    this.closePanel();
+    this.closeRoom();
+    this.buildWorld(true);
+    if (this.editTab === "plan") this.editor?.setData(this.planData());
+    this.planDirty = false;
+    this.markDirty(false);
   }
 
   private fillEntityPicker(): void {
@@ -1445,8 +1589,8 @@ class Blueprint3DCard extends HTMLElement {
     const states = Object.values(this._hass?.states ?? {}).filter((s) => DOMAIN_TO_KIND[s.entity_id.split(".")[0]]);
     states.sort((a, b) => a.entity_id.localeCompare(b.entity_id));
     const opt = (s: HassEntity) =>
-      `<option value="${esc(s.entity_id)}">${placed.has(s.entity_id) ? "✓ " : ""}${esc(s.attributes.friendly_name ?? s.entity_id)} · ${esc(s.entity_id)}</option>`;
-    select.innerHTML = `<option value="">＋ ${t("add_device")}…</option>` + states.map(opt).join("");
+      `<option value="${esc(s.entity_id)}">${esc(s.attributes.friendly_name ?? s.entity_id)} · ${esc(s.entity_id)}${placed.has(s.entity_id) ? ` (${esc(t("placed"))})` : ""}</option>`;
+    select.innerHTML = `<option value="">+ ${t("add_device")}…</option>` + states.map(opt).join("");
     select.value = this.placingEntity ?? "";
   }
 
@@ -1497,7 +1641,7 @@ class Blueprint3DCard extends HTMLElement {
       this.select(next);
       next.update(this._hass?.states[cfg.entity]);
     }
-    this.markDirty();
+    this.markDirty(false);
   }
 
   private updateDevice(cfg: DeviceConfig, change: () => void): void {
@@ -1700,7 +1844,7 @@ class Blueprint3DCard extends HTMLElement {
       if (!confirm(t("import_confirm"))) return;
       const warnings = this.applyImport(res.config);
       modal.querySelector("div")!.innerHTML = `
-        <strong>✓ ${t("imported")}</strong>
+        <strong class="with-ic">${icon("check")}${t("imported")}</strong>
         <span class="muted">${t("imported_hint")}</span>
         ${warnings.length ? `<span class="error">${esc(warnings.length)} ${t("import_warnings")} : ${esc(warnings.slice(0, 5).join(" · "))}</span>` : ""}
         <div class="actions"><button data-act="close">${t("close")}</button></div>`;

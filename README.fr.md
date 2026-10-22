@@ -7,7 +7,7 @@ Carte Lovelace pour Home Assistant : ta maison en 3D, avec tes lampes, clims, as
 ![Blueprint3D Card : maison de démo en 3D](docs/screenshot.png)
 
 - La maison est **générée à partir d'un plan simple** (des pièces rectangulaires en mètres). Pas besoin de Blender.
-- Les murs sont créés automatiquement, et ceux tournés vers la caméra s'abaissent pour qu'on voie l'intérieur.
+- Les murs sont créés automatiquement. Ceux entre la caméra et la maison deviennent transparents (avec un fin contour) pour qu'on voie l'intérieur ; le bouton **Murs** propose aussi coupe, bas et pleins.
 - Les lampes allumées **éclairent vraiment la pièce**, avec leur couleur et leur luminosité.
 - La clim souffle, le robot aspirateur se balade, les volets montent et descendent.
 - Le soleil suit `sun.sun` : ombres le jour, ambiance tamisée la nuit.
@@ -46,7 +46,7 @@ La carte est plus agréable seule, en plein écran, sur son propre tableau de bo
 
    Les deux donnent la même carte. Clique sur **Enregistrer**, puis sur **Terminé**.
 
-Sans config, la carte affiche un appartement de démo. Clique sur **✎ Éditer** dans la carte pour dessiner ton plan, puis sur **💾 Enregistrer**. Ta maison est stockée dans la config du tableau de bord (✏️ → ⋮ → **Éditeur de configuration brute**), pas dans le fichier JS : mettre à jour la carte ne la fait jamais perdre.
+Sans config, la carte affiche un appartement de démo. Clique sur **Éditer** dans la carte pour dessiner ton plan, puis sur **Enregistrer**. Ta maison est stockée dans la config du tableau de bord (✏️ → ⋮ → **Éditeur de configuration brute**), pas dans le fichier JS : mettre à jour la carte ne la fait jamais perdre.
 
 ## Configuration
 
@@ -60,7 +60,7 @@ wall_height: 2.5     # m
 sun_entity: sun.sun  # éclairage jour/nuit
 north: 0             # angle (°) entre le haut du plan et le nord
 compact_labels: false
-max_labels: 3        # étiquettes dépliées au premier plan (défaut : 3 sur téléphone, toutes sur grand écran)
+max_labels: 3        # étiquettes dépliées dans les pièces au premier plan (défaut : 3 sur téléphone, toutes sur grand écran)
 rooms:               # rectangles en mètres, x vers la droite, y vers le bas
   - name: Salon
     x: 0
@@ -125,42 +125,44 @@ Sans source de position, le déplacement du robot est **simulé** : il se balade
 ## Au quotidien
 
 - **Fiche de pièce** : un clic sur le sol d'une pièce l'ouvre. On y voit ses appareils, la température, l'humidité, le mouvement détecté et la consommation, avec des boutons « Tout allumer » et « Tout éteindre ». Les appareils marqués « confirmation » ne sont jamais actionnés en groupe sans accord.
-- **Scènes** : des boutons en bas de la carte lancent des `scene.*` ou `script.*`. On les choisit avec **🎬 Scènes** en mode édition.
+- **Scènes** : des boutons en bas de la carte lancent des `scene.*` ou `script.*`. On les choisit avec **Scènes** en mode édition. Leur icône est celle de l'entité (`mdi:`), ou `icon: mdi:…` dans la config.
 - **Portes et fenêtres vivantes** : les portes intérieures sont ouvertes, les autres fermées. Un battant suit son capteur d'ouverture, soit relié dans l'éditeur 2D, soit posé à moins de 80 cm. Une **alerte** s'affiche quand une fenêtre est ouverte alors que la clim de la pièce tourne.
-- **Carte de chaleur** (bouton 🌡️) : les sols sont colorés selon la température, l'humidité ou la consommation. Une légende indique l'échelle.
+- **Tuiles d'infos** (en haut à gauche) : consommation, température et humidité intérieures, lumières allumées, portes et fenêtres ouvertes. Un clic sur les trois premières active la carte de chaleur.
+- **Carte de chaleur** (bouton **Chaleur** ou les tuiles) : les sols sont colorés selon la température, l'humidité ou la consommation. Une légende indique l'échelle.
+- **Étiquettes** : seuls les appareils des pièces les plus proches de la caméra affichent leur étiquette complète ; les autres deviennent une pastille ronde avec leur icône (nom au survol). Les étiquettes de pièces affichent température, humidité et nombre de lumières allumées.
 - **Présence** : les personnes (`person.*`) s'affichent, en couleur si elles sont à la maison. Une pièce s'illumine doucement quand un mouvement y est détecté.
-- **Énergie** : la puissance de chaque appareil est affichée (par exemple « 45 W »). Le capteur de la prise (Tapo P110, Hue…) est trouvé automatiquement dans le même appareil HA. Le compteur du logement (Linky…) se règle dans **⚙ Réglages**.
+- **Énergie** : la puissance de chaque appareil est affichée (par exemple « 45 W »). Le capteur de la prise (Tapo P110, Hue…) est trouvé automatiquement dans le même appareil HA. Le compteur du logement (Linky…) se règle dans **Réglages**.
 - **Aspirateur** : avec Xiaomi Cloud Map Extractor (ou toute entité exposant `vacuum_position` et `charger`), le robot suit sa vraie position et trace son trajet. La base sert de repère ; la rotation et le miroir se règlent dans sa fiche.
 - **Caméras** : la fiche affiche le flux en direct avec le lecteur de Home Assistant (WebRTC ou HLS), sinon une image rafraîchie toutes les 3 s.
-- **Étages** : on les déclare dans ⚙ Réglages (un nom par ligne), puis un sélecteur apparaît en haut de la carte. L'éditeur 2D montre l'étage du dessous en pointillés.
+- **Étages** : on les déclare dans Réglages (un nom par ligne), puis un sélecteur apparaît en haut de la carte. L'éditeur 2D montre l'étage du dessous en pointillés.
 - **Météo** : pluie ou neige sur la terrasse et le balcon (sol mouillé et brillant), et soleil atténué par temps couvert, d'après `weather.*`.
 - **Rendu** : parquet, carrelage et lames de terrasse générés par le code, ombres de contact, halos des lampes, tonalité naturelle, plinthes, cadres, battants et garde-corps vitrés. Les meubles ont des bords arrondis et des coussins. La qualité est réglable avec `quality: auto | high | low`.
 
 ## Éditer
 
-Clique sur **✎ Éditer**. Deux onglets apparaissent en bas de la carte, avec les boutons 📚 Bibliothèque, 🎬 Scènes et ⚙ Réglages (titre, compteur, météo, qualité, hauteur sous plafond, nord, étages, personnes).
+Clique sur **Éditer**. Deux onglets apparaissent en bas de la carte, avec la flèche **Annuler** (aussi **Ctrl+Z**, jusqu'à 50 étapes) et les boutons **Bibliothèque**, **Scènes** et **Réglages** (titre, compteur, météo, qualité, hauteur sous plafond, nord, étages, personnes).
 
-### 💡 Appareils (vue 3D)
+### Appareils (vue 3D)
 
 1. Choisis une entité dans la liste, puis clique dans la maison pour la placer.
 2. Glisse un appareil pour le déplacer. Clique dessus pour le retirer.
-3. La fiche de l'appareil propose des hauteurs prédéfinies (Sol / Meuble / Mur / Plafond), un curseur de hauteur et une rotation. Sur téléphone, la caméra zoome sur l'appareil et des boutons ◀ ▶ ▼ ▲ le décalent.
+3. La fiche de l'appareil propose des hauteurs prédéfinies (Sol / Meuble / Mur / Plafond), un curseur de hauteur et une rotation. Sur téléphone, la caméra zoome sur l'appareil et des boutons fléchés le décalent.
 
-### 📐 Plan (vue 2D)
+### Plan (vue 2D)
 
 | Outil | Utilisation |
 |---|---|
-| ↖ Sélection | Clic pour sélectionner, glisser pour déplacer, poignées pour redimensionner. Molette pour zoomer, glisser dans le vide pour se déplacer. `Suppr` efface, les flèches décalent de 5 cm (`Maj` : 50 cm). |
-| ▭ Pièce | Glisse pour dessiner une pièce. Déplacer une pièce emmène ses meubles, ses appareils et ses portes. |
+| Sélection | Clic pour sélectionner, glisser pour déplacer, poignées pour redimensionner. Molette pour zoomer, glisser dans le vide pour se déplacer. `Suppr` efface, les flèches décalent de 5 cm (`Maj` : 50 cm). |
+| Pièce | Glisse pour dessiner une pièce. Déplacer une pièce emmène ses meubles, ses appareils et ses portes. |
 | Porte, porte-fenêtre, fenêtre | Clique sur un mur pour poser l'ouverture, puis glisse-la le long du mur ou ajuste sa largeur par ses poignées. |
-| ▣ Meuble | Choisis le type (canapé, lit, table, bureau, chaise, armoire, meuble cuisine, plante, bloc), puis glisse pour le dessiner. Un simple clic le pose à sa taille par défaut. |
-| ⧉ Calque | Charge une image de ton plan (PNG ou JPG, ou une capture d'écran du PDF). Aligne-la avec les poignées, puis décalque tes pièces par-dessus. |
+| Meuble | Choisis le type (canapé, lit, table, bureau, chaise, armoire, meuble cuisine, plante, bloc), puis glisse pour le dessiner. Un simple clic le pose à sa taille par défaut. |
+| Calque | Charge une image de ton plan (PNG ou JPG, ou une capture d'écran du PDF). Aligne-la avec les poignées, puis décalque tes pièces par-dessus. |
 
 Le panneau de droite permet de régler chaque élément : nom, cotes au centimètre, couleur du sol, extérieur, type, hauteur, etc. Il permet aussi de dupliquer, de faire pivoter ou de supprimer.
 
-### 📚 Bibliothèque d'objets
+### Bibliothèque d'objets
 
-Le bouton **📚 Bibliothèque** (en mode édition, dans les deux onglets) propose environ 250 objets, avec recherche, catégories et filtre par marque :
+Le bouton **Bibliothèque** (en mode édition, dans les deux onglets) propose environ 250 objets, avec recherche, catégories et filtre par marque :
 
 | Catégorie | Exemples |
 |---|---|
@@ -182,14 +184,14 @@ Pour un appareil sensible (porte de garage, chauffe-eau…), coche **Demander co
 
 ### Enregistrer
 
-- **💾 Enregistrer** écrit la config directement dans le tableau de bord. Il faut un tableau de bord géré depuis l'interface (pas en YAML) et un compte admin.
+- **Enregistrer** écrit la config directement dans le tableau de bord. Il faut un tableau de bord géré depuis l'interface (pas en YAML) et un compte admin.
 - Sinon, la carte affiche le YAML à copier dans l'éditeur de la carte.
 
 ### Importer et exporter
 
-- **⤓ Exporter la config** affiche le YAML complet (plan, meubles, appareils, calque), à copier ou à **télécharger** en fichier `.yaml`. C'est pratique pour sauvegarder ta maison ou la partager.
-- **⤒ Importer** accepte du YAML ou du JSON, collé ou chargé depuis un fichier `.yaml`, `.yml` ou `.json`. Ce peut être la config de la carte seule, ou la config complète d'un tableau de bord : la carte y retrouve sa propre config.
-- Le contenu importé remplace le plan et les appareils, mais rien n'est enregistré tant que tu ne cliques pas sur **💾 Enregistrer**.
+- **Exporter** (bouton flèche vers le bas) affiche le YAML complet (plan, meubles, appareils, calque), à copier ou à **télécharger** en fichier `.yaml`. C'est pratique pour sauvegarder ta maison ou la partager.
+- **Importer** (bouton flèche vers le haut) accepte du YAML ou du JSON, collé ou chargé depuis un fichier `.yaml`, `.yml` ou `.json`. Ce peut être la config de la carte seule, ou la config complète d'un tableau de bord : la carte y retrouve sa propre config.
+- Le contenu importé remplace le plan et les appareils, mais rien n'est enregistré tant que tu ne cliques pas sur **Enregistrer**.
 - **Garde-fous de l'import** :
   - 5 Mo maximum ;
   - pas de tag YAML exécutable ;
@@ -223,7 +225,7 @@ Pour publier une version : mettre le même numéro dans `package.json` et `VERSI
 | Fichier | Rôle |
 |---|---|
 | `src/blueprint3d-card.ts` | L'élément Lovelace : scène, caméra, interactions, mode édition |
-| `src/house.ts` | Génération des sols, murs, ouvertures et meubles, et murs coupés selon la caméra |
+| `src/house.ts` | Génération des sols, murs, ouvertures et meubles, et murs estompés ou coupés selon la caméra |
 | `src/devices.ts` | Rendu 3D et animation de chaque type d'appareil |
 | `src/panel.ts` | Fiche de contrôle |
 | `src/editor.ts` | Éditeur de plan 2D (pièces, ouvertures, meubles, calque) |
